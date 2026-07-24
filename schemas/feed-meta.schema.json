@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/saita-kun/saita-kun-feeder/schemas/feed-meta.schema.json",
+  "title": "saita-kun public subsidy feed — meta.json (contract v1)",
+  "description": "Contract SSoT: docs/design/feed-contract-v1.md. Producer acceptance = tools/check-feed-contract.sh passes.",
+  "type": "object",
+  "required": ["schema_version", "contract_url", "generated_at", "row_count", "files", "license"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+$",
+      "description": "major.minor. Consumers must reject a different major."
+    },
+    "contract_url": { "type": "string", "format": "uri" },
+    "generated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "UTC ISO 8601, Z-terminated."
+    },
+    "row_count": { "type": "integer", "minimum": 0 },
+    "files": {
+      "type": "object",
+      "required": ["subsidies.json.gz"],
+      "properties": {
+        "subsidies.json.gz": {
+          "type": "object",
+          "required": ["bytes", "sha256", "sha256_uncompressed"],
+          "properties": {
+            "bytes": { "type": "integer", "minimum": 0 },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "sha256_uncompressed": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "license": { "const": "CDLA-Permissive-2.0" },
+    "attribution": { "type": "string" },
+    "deprecated": { "type": "boolean", "default": false }
+  },
+  "additionalProperties": true
+}

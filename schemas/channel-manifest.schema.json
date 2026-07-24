@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/saita-kun/saita-kun-feeder/schemas/channel-manifest.schema.json",
+  "title": "channel manifest (channels/<name>/channel.json)",
+  "description": "Adapter contract SSoT: docs/design/notifier-contract.md. Secrets never go here; declare required env var NAMES in requires_env.",
+  "type": "object",
+  "required": ["contract_version", "name", "description", "requires_env"],
+  "properties": {
+    "contract_version": { "const": 1 },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Must equal the directory name under channels/."
+    },
+    "description": { "type": "string", "minLength": 1 },
+    "requires_env": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+      "description": "Env var NAMES the send script needs (values live in GHA Secrets / local env)."
+    },
+    "generated_by": { "type": "string" },
+    "generated_at": { "type": "string" }
+  },
+  "additionalProperties": false
+}

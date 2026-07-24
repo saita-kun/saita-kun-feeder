@@ -1,0 +1,64 @@
+name: deliver
+
+on:
+  schedule:
+    - cron: '0 22 * * *'   # 22:00 UTC = JST 07:00 daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    # Never run on the public template repo itself.
+    if: github.repository != 'saita-kun/saita-kun-feeder'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard - repo must be private (TERMS §5)
+        run: |
+          PRIVATE="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .private)"
+          if [ "$PRIVATE" != "true" ]; then
+            echo "::error::この repo は private ではありません。会社プロファイルを含むため配信を実行しません（TERMS 第5条）。"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Guard - profile must be set up
+        id: profile
+        run: |
+          if [ ! -f profile/delivery-profile.json ]; then
+            echo "::notice::profile/delivery-profile.json がありません。/setup 完了までスキップします。"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif grep -q 'REPLACED-BY-SETUP' profile/delivery-profile.json; then
+            echo "::notice::プロファイルがサンプルのままです。/setup 完了までスキップします。"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.profile.outputs.ready == 'true'
+        with:
+          node-version: 20
+
+      - name: Deliver
+        if: steps.profile.outputs.ready == 'true'
+        run: node runner/deliver.js
+        # チャネルアダプタの秘匿値はここで渡します（/setup-channel が追記を案内）。
+        # 例:
+        # env:
+        #   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Commit ledger
+        if: steps.profile.outputs.ready == 'true'
+        run: |
+          if ! git diff --quiet -- state/notified.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state/notified.json
+            git commit -m "chore: update delivery ledger ($(date -u +%F))"
+            git push
+          fi

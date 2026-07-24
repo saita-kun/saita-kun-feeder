@@ -1,0 +1,115 @@
+{
+  "axis": "purposes/categories OR semantics + integration (mapped from saita-kun tests/match-req/match-predicate-{purposes,integration}.sh)",
+  "base_user": {
+    "company_prefecture": "東京都",
+    "company_municipality": null,
+    "include_nationwide": true,
+    "categories": null,
+    "purposes": null,
+    "amount_min": null,
+    "amount_max": null,
+    "deadline_buffer_days": null,
+    "subsidy_rate_min": null,
+    "employee_count": null
+  },
+  "base_subsidy": {
+    "gov_level": "prefecture",
+    "prefectures": ["tokyo"],
+    "municipality": null,
+    "maximum_amount": null,
+    "application_deadline": "2026-09-30",
+    "subsidy_rate": null,
+    "eligible_scale": null
+  },
+  "fixtures": [
+    {
+      "name": "purposes-any-of-match-included (one of two selected purposes hits)",
+      "user": { "purposes": ["it_intro", "rd"] },
+      "subsidy": { "purpose_rd": 1 },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "purposes-none-match-excluded",
+      "user": { "purposes": ["it_intro", "rd"] },
+      "subsidy": { "purpose_market": 1 },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "purposes-empty-array-no-constraint-included",
+      "user": { "purposes": [] },
+      "subsidy": {},
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "categories-any-of-match-included",
+      "user": { "categories": ["it", "construction"] },
+      "subsidy": { "category_construction": 1 },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "categories-string-column-value-coerced (Number('1')===1)",
+      "user": { "categories": ["it"] },
+      "subsidy": { "category_it": "1" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "integration-all-axes-satisfied-included",
+      "user": {
+        "company_prefecture": "大阪府",
+        "company_municipality": "岸和田市",
+        "categories": ["construction"],
+        "purposes": ["capex"],
+        "amount_min": 100000,
+        "amount_max": 10000000,
+        "deadline_buffer_days": 14,
+        "subsidy_rate_min": 0.5,
+        "employee_count": 5
+      },
+      "subsidy": {
+        "gov_level": "municipal",
+        "prefectures": ["osaka"],
+        "municipality": "岸和田市",
+        "category_construction": 1,
+        "purpose_capex": 1,
+        "maximum_amount": 2000000,
+        "application_deadline": "2026-08-31",
+        "subsidy_rate": "0.66",
+        "eligible_scale": "small"
+      },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "integration-single-axis-failure-excluded (same as above but purpose mismatch)",
+      "user": {
+        "company_prefecture": "大阪府",
+        "company_municipality": "岸和田市",
+        "categories": ["construction"],
+        "purposes": ["succession"],
+        "amount_min": 100000,
+        "amount_max": 10000000,
+        "deadline_buffer_days": 14,
+        "subsidy_rate_min": 0.5,
+        "employee_count": 5
+      },
+      "subsidy": {
+        "gov_level": "municipal",
+        "prefectures": ["osaka"],
+        "municipality": "岸和田市",
+        "category_construction": 1,
+        "purpose_capex": 1,
+        "maximum_amount": 2000000,
+        "application_deadline": "2026-08-31",
+        "subsidy_rate": "0.66",
+        "eligible_scale": "small"
+      },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    }
+  ]
+}

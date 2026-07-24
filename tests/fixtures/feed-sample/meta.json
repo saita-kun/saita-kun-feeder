@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "contract_url": "https://github.com/saita-kun/saita-kun-feeder/blob/main/docs/design/feed-contract-v1.md",
+  "generated_at": "2026-07-09T21:00:00Z",
+  "row_count": 5,
+  "files": {
+    "subsidies.json.gz": {
+      "bytes": 1274,
+      "sha256": "e2d005a838f273c2c2c073edfaf30dcc4bb121fdf82a5744364c4120e76a7427",
+      "sha256_uncompressed": "0c38fdaad6064ef3cb4444e0220c7693c8288eaa3f844d278bddec6035183616"
+    }
+  },
+  "license": "CDLA-Permissive-2.0",
+  "attribution": "サイタくん 補助金公開データフィード（契約準拠サンプル）",
+  "deprecated": false
+}

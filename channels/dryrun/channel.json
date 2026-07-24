@@ -1,0 +1,8 @@
+{
+  "contract_version": 1,
+  "name": "dryrun",
+  "description": "Reference channel: prints the digest to stdout. No network side effects. The testable core every real adapter is generated against.",
+  "requires_env": [],
+  "generated_by": "core",
+  "generated_at": "2026-07-24"
+}

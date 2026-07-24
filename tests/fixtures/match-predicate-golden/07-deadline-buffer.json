@@ -1,0 +1,68 @@
+{
+  "axis": "deadline buffer (divergence #7: jq NULL-checks (0 evaluates) and accepts YYYY/MM/DD; JS truthy-checks (0 skips) and ISO only)",
+  "base_user": {
+    "company_prefecture": "東京都",
+    "company_municipality": null,
+    "include_nationwide": true,
+    "categories": null,
+    "purposes": null,
+    "amount_min": null,
+    "amount_max": null,
+    "deadline_buffer_days": null,
+    "subsidy_rate_min": null,
+    "employee_count": null
+  },
+  "base_subsidy": {
+    "gov_level": "prefecture",
+    "prefectures": ["tokyo"],
+    "municipality": null,
+    "maximum_amount": null,
+    "application_deadline": "2026-09-30",
+    "subsidy_rate": null,
+    "eligible_scale": null
+  },
+  "fixtures": [
+    {
+      "name": "buffer-zero-skips-axis-included (JS truthy: 0 → skip / jq NULL-check: 0 → evaluate)",
+      "user": { "deadline_buffer_days": 0 },
+      "subsidy": { "application_deadline": "2026-07-11" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "buffer-satisfied-included (40 days left >= 30)",
+      "user": { "deadline_buffer_days": 30 },
+      "subsidy": { "application_deadline": "2026-08-19" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "buffer-not-satisfied-excluded (10 days left < 30)",
+      "user": { "deadline_buffer_days": 30 },
+      "subsidy": { "application_deadline": "2026-07-20" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "buffer-boundary-exact-days-included (exactly 30 days left)",
+      "user": { "deadline_buffer_days": 30 },
+      "subsidy": { "application_deadline": "2026-08-09" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "buffer-slash-date-format-excluded (JS ISO-only: YYYY/MM/DD unparseable → false / jq accepts)",
+      "user": { "deadline_buffer_days": 30 },
+      "subsidy": { "application_deadline": "2026/08/30" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "free-tier-ignores-deadline-buffer (optional filters are paid-only)",
+      "user": { "deadline_buffer_days": 30 },
+      "subsidy": { "application_deadline": "2026-07-20" },
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": true
+    }
+  ]
+}

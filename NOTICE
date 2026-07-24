@@ -1,0 +1,13 @@
+saita-kun-feeder
+Copyright 2026 saita-kun project
+
+This product includes software developed for the サイタくん (saita-kun)
+project (https://github.com/saita-kun).
+
+The matching logic in lib/match-user-subsidy.js, lib/eligible-scale.js and
+lib/prefecture-mapper.js originates from the saita-kun delivery engine and is
+vendored verbatim under the Apache License 2.0 by its copyright holder.
+Provenance and re-sync procedure: lib/VENDORED.md.
+
+The public subsidy data feed consumed by this harness is licensed separately
+under CDLA-Permissive-2.0 (see docs/design/feed-contract-v1.md).

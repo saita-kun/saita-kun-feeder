@@ -1,0 +1,76 @@
+{
+  "axis": "municipality (divergence #3: axis does not exist in jq)",
+  "base_user": {
+    "company_prefecture": "福岡県",
+    "company_municipality": null,
+    "include_nationwide": true,
+    "categories": null,
+    "purposes": null,
+    "amount_min": null,
+    "amount_max": null,
+    "deadline_buffer_days": null,
+    "subsidy_rate_min": null,
+    "employee_count": null
+  },
+  "base_subsidy": {
+    "gov_level": "municipal",
+    "prefectures": ["fukuoka"],
+    "municipality": "北九州市",
+    "maximum_amount": null,
+    "application_deadline": "2026-09-30",
+    "subsidy_rate": null,
+    "eligible_scale": null
+  },
+  "fixtures": [
+    {
+      "name": "municipal-exact-match-included",
+      "user": { "company_municipality": "北九州市" },
+      "subsidy": {},
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "municipal-containment-match-included (extracted value with extra words)",
+      "user": { "company_municipality": "岸和田市" },
+      "subsidy": { "prefectures": ["osaka"], "municipality": "岸和田市内の「都市拠点」" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false,
+      "note": "user pref 福岡県 vs subsidy osaka → region gate fails first. Kept as combined-gate case."
+    },
+    {
+      "name": "municipal-containment-match-same-pref-included",
+      "user": { "company_prefecture": "大阪府", "company_municipality": "岸和田市" },
+      "subsidy": { "prefectures": ["osaka"], "municipality": "岸和田市内の「都市拠点」" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "municipal-mismatch-excluded",
+      "user": { "company_municipality": "福岡市" },
+      "subsidy": {},
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "municipal-with-empty-municipality-column-excluded (municipal guard)",
+      "user": { "company_municipality": "北九州市" },
+      "subsidy": { "municipality": "" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "municipal-user-unset-lenient-included (user without municipality passes on pref match)",
+      "user": { "company_municipality": null },
+      "subsidy": {},
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "free-tier-municipal-excluded-by-tier-gate (free = national/prefecture only)",
+      "user": { "company_municipality": "北九州市" },
+      "subsidy": {},
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": false
+    }
+  ]
+}

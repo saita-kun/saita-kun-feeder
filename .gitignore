@@ -1,0 +1,12 @@
+# Adopter-private data (never committed)
+input/
+
+# Generated digests
+output/
+
+# Feed cache (last known-good snapshot, machine-local)
+state/cache/
+
+# OS / editor noise
+.DS_Store
+node_modules/

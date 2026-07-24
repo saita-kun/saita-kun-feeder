@@ -1,0 +1,47 @@
+{
+  "axis": "corporation type (divergence #6: jq evaluates via description `contains`, JS v1 does not evaluate — known design limit)",
+  "base_user": {
+    "company_prefecture": "東京都",
+    "company_municipality": null,
+    "include_nationwide": true,
+    "categories": null,
+    "purposes": null,
+    "amount_min": null,
+    "amount_max": null,
+    "deadline_buffer_days": null,
+    "subsidy_rate_min": null,
+    "employee_count": null
+  },
+  "base_subsidy": {
+    "gov_level": "prefecture",
+    "prefectures": ["tokyo"],
+    "municipality": null,
+    "maximum_amount": null,
+    "application_deadline": "2026-09-30",
+    "subsidy_rate": null,
+    "eligible_scale": null
+  },
+  "fixtures": [
+    {
+      "name": "corporation-restrictive-description-not-evaluated-included (JS never excludes on corporation text)",
+      "user": {},
+      "subsidy": { "description": "株式会社に限る。個人事業主は対象外。" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "corporation-type-set-but-not-evaluated-included (JS ignores corporation_type / jq contains-excludes)",
+      "user": { "corporation_type": "NPO法人" },
+      "subsidy": { "description": "株式会社に限る。個人事業主は対象外。" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "free-tier-corporation-also-not-evaluated-included",
+      "user": {},
+      "subsidy": { "description": "株式会社に限る。個人事業主は対象外。" },
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": true
+    }
+  ]
+}

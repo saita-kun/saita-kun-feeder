@@ -1,0 +1,77 @@
+{
+  "axis": "free/paid tier (divergence #4: concept absent in jq — all users get all levels)",
+  "base_user": {
+    "company_prefecture": "東京都",
+    "company_municipality": null,
+    "include_nationwide": true,
+    "categories": ["it"],
+    "purposes": ["it_intro"],
+    "amount_min": null,
+    "amount_max": null,
+    "deadline_buffer_days": null,
+    "subsidy_rate_min": null,
+    "employee_count": null
+  },
+  "base_subsidy": {
+    "gov_level": "prefecture",
+    "prefectures": ["tokyo"],
+    "municipality": null,
+    "maximum_amount": null,
+    "application_deadline": "2026-09-30",
+    "subsidy_rate": null,
+    "eligible_scale": null,
+    "category_it": 1,
+    "purpose_it_intro": 1
+  },
+  "fixtures": [
+    {
+      "name": "free-prefecture-level-included",
+      "user": {},
+      "subsidy": {},
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": true
+    },
+    {
+      "name": "free-national-level-included",
+      "user": {},
+      "subsidy": { "gov_level": "national", "prefectures": ["zenkoku"] },
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": true
+    },
+    {
+      "name": "free-municipal-level-excluded (tier gate)",
+      "user": { "company_prefecture": "福岡県", "company_municipality": "北九州市" },
+      "subsidy": { "gov_level": "municipal", "prefectures": ["fukuoka"], "municipality": "北九州市" },
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": false
+    },
+    {
+      "name": "free-ignores-category-mismatch (detail filters are paid-only)",
+      "user": { "categories": ["agriculture"] },
+      "subsidy": {},
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": true
+    },
+    {
+      "name": "paid-category-mismatch-excluded",
+      "user": { "categories": ["agriculture"] },
+      "subsidy": {},
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "paid-purpose-mismatch-excluded",
+      "user": { "purposes": ["succession"] },
+      "subsidy": {},
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "paid-default-isPaid-unspecified-treated-as-paid (opts.isPaid !== false)",
+      "user": { "categories": ["agriculture"] },
+      "subsidy": {},
+      "opts": { "today": "2026-07-10" },
+      "expected": false
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "axis": "zenkoku/region (divergence #2: jq requires include_nationwide==true strictly, NULL→false; user pref NULL→false)",
+  "base_user": {
+    "company_prefecture": "東京都",
+    "company_municipality": null,
+    "include_nationwide": true,
+    "categories": null,
+    "purposes": null,
+    "amount_min": null,
+    "amount_max": null,
+    "deadline_buffer_days": null,
+    "subsidy_rate_min": null,
+    "employee_count": null
+  },
+  "base_subsidy": {
+    "gov_level": "prefecture",
+    "prefectures": ["tokyo"],
+    "municipality": null,
+    "maximum_amount": null,
+    "application_deadline": "2026-09-30",
+    "subsidy_rate": null,
+    "eligible_scale": null
+  },
+  "fixtures": [
+    {
+      "name": "zenkoku-with-nationwide-null-included (JS default TRUE / jq strict ==true → false)",
+      "user": { "include_nationwide": null },
+      "subsidy": { "gov_level": "national", "prefectures": ["zenkoku"] },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "zenkoku-with-nationwide-false-excluded",
+      "user": { "include_nationwide": false },
+      "subsidy": { "gov_level": "national", "prefectures": ["zenkoku"] },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "explicit-pref-match-ignores-nationwide-false (listed pref wins regardless of nationwide setting)",
+      "user": { "include_nationwide": false },
+      "subsidy": { "prefectures": ["tokyo", "osaka"] },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "pref-mismatch-excluded",
+      "user": {},
+      "subsidy": { "prefectures": ["osaka"] },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "user-pref-unmapped-string-no-match-excluded (JS: toEnglish passthrough, no zenkoku → false)",
+      "user": { "company_prefecture": "存在しない県" },
+      "subsidy": { "prefectures": ["tokyo"] },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "free-tier-region-axis-still-applies (zenkoku + nationwide false excluded even for free)",
+      "user": { "include_nationwide": false },
+      "subsidy": { "gov_level": "national", "prefectures": ["zenkoku"] },
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": false
+    }
+  ]
+}

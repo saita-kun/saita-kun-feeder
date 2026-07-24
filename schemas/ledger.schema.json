@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/saita-kun/saita-kun-feeder/schemas/ledger.schema.json",
+  "title": "idempotency ledger (state/notified.json)",
+  "description": "File port of the upstream SQL claim model (dr-006). content_hash covers the FIXED field list exported as HASH_FIELDS in lib/ledger.js (description is deliberately excluded); changing that list re-notifies every row and requires the dr-006 migration procedure. Contains only subsidy ids and hashes — no company data, no secrets.",
+  "type": "object",
+  "required": ["ledger_version", "entries"],
+  "properties": {
+    "ledger_version": { "const": 1 },
+    "entries": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["content_hash", "channels"],
+        "properties": {
+          "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "channels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["status", "first_notified_at", "last_attempt_at", "retry_count", "notified_as"],
+              "properties": {
+                "status": { "type": "string", "enum": ["sent", "failed"] },
+                "first_notified_at": { "type": "string" },
+                "last_attempt_at": { "type": "string" },
+                "retry_count": { "type": "integer", "minimum": 0 },
+                "notified_as": { "type": "string", "enum": ["new", "updated"] }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

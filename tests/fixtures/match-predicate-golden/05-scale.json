@@ -1,0 +1,69 @@
+{
+  "axis": "business scale (divergence #5: jq uses description `contains`, JS uses structured classifyUserScale/eligible_scale)",
+  "base_user": {
+    "company_prefecture": "東京都",
+    "company_municipality": null,
+    "include_nationwide": true,
+    "categories": ["construction"],
+    "purposes": null,
+    "amount_min": null,
+    "amount_max": null,
+    "deadline_buffer_days": null,
+    "subsidy_rate_min": null,
+    "employee_count": null
+  },
+  "base_subsidy": {
+    "gov_level": "prefecture",
+    "prefectures": ["tokyo"],
+    "municipality": null,
+    "maximum_amount": null,
+    "application_deadline": "2026-09-30",
+    "subsidy_rate": null,
+    "eligible_scale": null,
+    "category_construction": 1
+  },
+  "fixtures": [
+    {
+      "name": "scale-small-user-meets-small-subsidy-included (construction: 5 employees → small)",
+      "user": { "employee_count": 5 },
+      "subsidy": { "eligible_scale": "small" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "scale-sme-user-excluded-from-small-only-subsidy (construction: 100 employees → sme)",
+      "user": { "employee_count": 100 },
+      "subsidy": { "eligible_scale": "small" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "scale-large-user-excluded-from-sme-subsidy (construction: 500 employees → large)",
+      "user": { "employee_count": 500 },
+      "subsidy": { "eligible_scale": "sme" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "scale-unknown-employee-count-lenient-included",
+      "user": { "employee_count": null },
+      "subsidy": { "eligible_scale": "small" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "scale-any-subsidy-includes-large-user",
+      "user": { "employee_count": 5000 },
+      "subsidy": { "eligible_scale": "any" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "free-tier-scale-axis-still-applies (sme user excluded from small-only even for free)",
+      "user": { "employee_count": 100 },
+      "subsidy": { "eligible_scale": "small" },
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": false
+    }
+  ]
+}

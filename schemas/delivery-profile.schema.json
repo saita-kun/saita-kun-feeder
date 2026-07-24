@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/saita-kun/saita-kun-feeder/schemas/delivery-profile.schema.json",
+  "title": "delivery profile (profile/delivery-profile.json)",
+  "description": "Field names follow the vendored matcher's user object verbatim (golden fixtures are the semantics SSoT). Crosswalk from saita-kun-planner input/company-profile.json: employees -> employee_count, region -> company_prefecture / company_municipality. Attributes only — no company name, no secrets (those live in GHA Secrets / env). Committed to the adopter's private repo so scheduled runs can read it.",
+  "type": "object",
+  "required": ["profile_version", "terms_accepted_sha256", "company_prefecture", "channels"],
+  "properties": {
+    "profile_version": { "const": 1 },
+    "terms_accepted_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "sha256 of TERMS.md at consent time. Runner refuses to run when it no longer matches (re-consent via /setup)."
+    },
+    "company_prefecture": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Japanese prefecture name (e.g. 東京都). Mapped to romaji internally."
+    },
+    "company_municipality": { "type": ["string", "null"] },
+    "include_nationwide": { "type": "boolean", "default": true },
+    "categories": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "string",
+        "enum": [
+          "new_technology", "it", "entertainment", "professional", "agriculture",
+          "construction", "wholesale", "finance", "realestate", "hospitality",
+          "medical", "other"
+        ]
+      },
+      "description": "Must stay in sync with CATEGORY_KEYS in lib/match-user-subsidy.js (checked by tools/check-profile.sh). null/empty = no constraint."
+    },
+    "purposes": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "string",
+        "enum": ["capex", "it_intro", "rd", "hr", "market", "startup", "succession"]
+      },
+      "description": "Must stay in sync with PURPOSE_KEYS in lib/match-user-subsidy.js. null/empty = no constraint."
+    },
+    "amount_min": { "type": ["number", "null"] },
+    "amount_max": { "type": ["number", "null"] },
+    "employee_count": { "type": ["integer", "null"], "minimum": 0 },
+    "deadline_buffer_days": { "type": ["integer", "null"], "minimum": 0 },
+    "subsidy_rate_min": { "type": ["number", "null"] },
+    "weekly_cap": { "type": "integer", "minimum": 1, "default": 15 },
+    "daily_cap": { "type": "integer", "minimum": 1, "default": 5 },
+    "feed_base_url": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Base location containing meta.json / subsidies.json.gz. Configurable by design (dr-004: producer substitutability)."
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "enabled": { "type": "boolean", "default": true }
+        },
+        "additionalProperties": false
+      }
+    },
+    "updated_at": { "type": "string" }
+  },
+  "additionalProperties": false
+}

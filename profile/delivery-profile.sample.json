@@ -1,0 +1,21 @@
+{
+  "profile_version": 1,
+  "terms_accepted_sha256": "REPLACED-BY-SETUP",
+  "company_prefecture": "東京都",
+  "company_municipality": null,
+  "include_nationwide": true,
+  "categories": ["it"],
+  "purposes": ["it_intro", "capex"],
+  "amount_min": null,
+  "amount_max": null,
+  "employee_count": 4,
+  "deadline_buffer_days": null,
+  "subsidy_rate_min": null,
+  "weekly_cap": 15,
+  "daily_cap": 5,
+  "feed_base_url": "https://feed.example.invalid/v1",
+  "channels": [
+    { "name": "dryrun", "enabled": true }
+  ],
+  "updated_at": "SAMPLE"
+}

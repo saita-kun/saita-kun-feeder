@@ -1,0 +1,68 @@
+{
+  "axis": "subsidy rate (divergence #8: jq NULL-checks (0 evaluates); JS truthy-checks (0 skips), non-numeric rate → conservative exclude)",
+  "base_user": {
+    "company_prefecture": "東京都",
+    "company_municipality": null,
+    "include_nationwide": true,
+    "categories": null,
+    "purposes": null,
+    "amount_min": null,
+    "amount_max": null,
+    "deadline_buffer_days": null,
+    "subsidy_rate_min": null,
+    "employee_count": null
+  },
+  "base_subsidy": {
+    "gov_level": "prefecture",
+    "prefectures": ["tokyo"],
+    "municipality": null,
+    "maximum_amount": null,
+    "application_deadline": "2026-09-30",
+    "subsidy_rate": null,
+    "eligible_scale": null
+  },
+  "fixtures": [
+    {
+      "name": "rate-min-zero-skips-axis-included (JS falsy: 0 → skip)",
+      "user": { "subsidy_rate_min": 0 },
+      "subsidy": { "subsidy_rate": null },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "rate-satisfied-included (0.66 >= 0.5)",
+      "user": { "subsidy_rate_min": 0.5 },
+      "subsidy": { "subsidy_rate": "0.66" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "rate-below-min-excluded (0.33 < 0.5)",
+      "user": { "subsidy_rate_min": 0.5 },
+      "subsidy": { "subsidy_rate": "0.33" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "rate-non-numeric-conservative-excluded ('2/3' not Number-parseable)",
+      "user": { "subsidy_rate_min": 0.5 },
+      "subsidy": { "subsidy_rate": "2/3" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "rate-null-with-min-set-excluded (unknown rate cannot prove >= min)",
+      "user": { "subsidy_rate_min": 0.5 },
+      "subsidy": { "subsidy_rate": null },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "free-tier-ignores-rate-min (optional filters are paid-only)",
+      "user": { "subsidy_rate_min": 0.5 },
+      "subsidy": { "subsidy_rate": null },
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": true
+    }
+  ]
+}

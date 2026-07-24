@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# dryrun channel: print the digest markdown to stdout. Never has side effects,
+# so SAITA_FEEDER_DRY_RUN handling is trivially conformant (notifier contract).
+set -euo pipefail
+
+DIGEST_MD="${1:?usage: send <digest.md>}"
+
+if [ "${SAITA_FEEDER_DRY_RUN:-0}" = "1" ]; then
+  echo "--- dryrun channel (SAITA_FEEDER_DRY_RUN=1): would print digest ${DIGEST_MD} ---"
+fi
+
+cat "$DIGEST_MD"

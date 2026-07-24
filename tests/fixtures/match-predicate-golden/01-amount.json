@@ -1,0 +1,75 @@
+{
+  "axis": "amount sentinel (divergence #1: jq excludes NULL, treats sentinel 1 as real value)",
+  "base_user": {
+    "company_prefecture": "東京都",
+    "company_municipality": null,
+    "include_nationwide": true,
+    "categories": null,
+    "purposes": null,
+    "amount_min": null,
+    "amount_max": null,
+    "deadline_buffer_days": null,
+    "subsidy_rate_min": null,
+    "employee_count": null
+  },
+  "base_subsidy": {
+    "gov_level": "prefecture",
+    "prefectures": ["tokyo"],
+    "municipality": null,
+    "maximum_amount": null,
+    "application_deadline": "2026-09-30",
+    "subsidy_rate": null,
+    "eligible_scale": null
+  },
+  "fixtures": [
+    {
+      "name": "amount-null-with-min-set-included (JS: unknown skips axis / jq: false)",
+      "user": { "amount_min": 1000000 },
+      "subsidy": { "maximum_amount": null },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "amount-sentinel-1-with-min-set-included (JS: <=1 is unknown / jq: compares 1<min → false)",
+      "user": { "amount_min": 1000000 },
+      "subsidy": { "maximum_amount": "1" },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "amount-below-min-excluded",
+      "user": { "amount_min": 1000000 },
+      "subsidy": { "maximum_amount": 500000 },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "amount-above-max-excluded",
+      "user": { "amount_max": 300000 },
+      "subsidy": { "maximum_amount": 500000 },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": false
+    },
+    {
+      "name": "amount-equal-to-min-boundary-included",
+      "user": { "amount_min": 500000 },
+      "subsidy": { "maximum_amount": 500000 },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "amount-in-range-included",
+      "user": { "amount_min": 100000, "amount_max": 1000000 },
+      "subsidy": { "maximum_amount": 500000 },
+      "opts": { "today": "2026-07-10", "isPaid": true },
+      "expected": true
+    },
+    {
+      "name": "free-tier-ignores-amount-range (amount axis is paid-only)",
+      "user": { "amount_min": 1000000 },
+      "subsidy": { "maximum_amount": 500000 },
+      "opts": { "today": "2026-07-10", "isPaid": false },
+      "expected": true
+    }
+  ]
+}

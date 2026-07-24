@@ -1,0 +1,83 @@
+---
+description: 環境セルフチェック、private repo 確認、利用規約の同意、会社プロファイルのインタビューを行い、初回の /deliver --dry-run へ案内します。
+---
+
+# /setup
+
+あなたは、このリポジトリを Claude Code で開いた事業者本人を支援するセットアップ案内役です。確認 → 同意 → プロファイル作成 → お試し実行の順に、未完了の項目だけを案内してください。
+
+## 1. 環境セルフチェック
+
+- `bash --version`・`python3 --version`・`node --version`（Node 20 以上）を確認します。node は配信ランナー、python3 は `tools/check-*.sh` に必要です。見つからない場合は各公式サイトのインストーラーを案内し、導入後に `/setup` を再実行してもらいます。
+- `gh repo view --json isPrivate --jq .isPrivate` を実行し、**この repo が private であること**を確認します。`true` 以外（または gh 未認証）の場合は先に対処を案内します。会社プロファイルを含むため、public のままでは先に進みません（TERMS 第 5 条）。
+- このディレクトリがテンプレートからの複製（自分の repo）であることを確認します。`saita-kun/saita-kun-feeder` を直接 clone している場合は、テンプレートから private repo を作る手順（`docs/onboarding/03-このキットを自分のものにする.md`）を案内します。
+
+## 2. 利用規約の同意確認
+
+- `TERMS.md` と `docs/data-policy.md`（やさしい版）の要点を短く伝えます。特に:
+  - **自社利用限定**（第 2 条）: 支援機関・代行業者がクライアント向けに使うことは禁止。利用者本人が自社のために使うかを確認します。
+  - **収集なし**（第 3 条）: プロファイルも配信結果も外部送信されません。
+  - 届く情報は「マッチ候補」であり、応募判断は公式の公募要領で行うこと。
+- 同意を確認できたら `input/setup-state.json` を書き込みます（同意がなければ書き込まず、該当条項を案内して終了します）:
+
+```json
+{
+  "setup_state_version": 1,
+  "setup_completed_at": "<ISO8601 日時>",
+  "terms_sha256": "<TERMS.md の sha256>",
+  "data_policy_sha256": "<docs/data-policy.md の sha256>"
+}
+```
+
+sha256 は `shasum -a 256 TERMS.md docs/data-policy.md` で取得します。
+
+## 3. 会社プロファイルのインタビュー
+
+`profile/delivery-profile.sample.json` を雛形に、以下を**自社について**聞き取り、`profile/delivery-profile.json` を作成します（スキーマ: `schemas/delivery-profile.schema.json`）。姉妹キット saita-kun-planner の fork に `input/company-profile.json` があれば、読み替え（`employees`→`employee_count`、`region`→`company_prefecture`/`company_municipality`）でプレフィルし、確認だけ取ります。
+
+1. 所在地: 都道府県（`company_prefecture`、日本語名）と市区町村（`company_municipality`、任意）
+2. 全国対象の補助金も受け取るか（`include_nationwide`、既定 true）
+3. 業種（`categories`、複数可・未指定可）と使いたい用途（`purposes`、複数可・未指定可）
+4. 従業員数（`employee_count`。規模要件の判定に使用。答えたくなければ null = 規模で絞らない）
+5. 任意の絞り込み: 金額レンジ・締切までの余裕日数・補助率下限
+6. `terms_accepted_sha256` に手順 2 で取得した TERMS.md の sha256 を設定
+7. `feed_base_url` は既定値のままにする（変更は上級者向け。dr-004）
+8. `channels` は `[{"name": "dryrun", "enabled": true}]` から始める
+
+作成後、`tools/check-profile.sh` を実行して green を確認します。red の場合は指摘を直してから進みます。
+
+## 4. お試し実行への案内
+
+`node runner/deliver.js --dry-run` を実行し、生成されたダイジェスト（`output/`）を一緒に確認します。マッチ件数がゼロ・多すぎる場合はプロファイルの絞り込みを調整します。
+
+その後、次のステップとして以下を案内します:
+
+- `/setup-channel` — 通知の届け先（Slack・メール等）を設定する
+- 日次自動配信は `.github/workflows/deliver.yml` が行うこと（有効化には repo の Actions が on であること、プロファイルコミット済みであること）
+
+## 出力形式
+
+```markdown
+# セットアップ確認
+
+## 環境
+- [ ] bash / python3 / node 20+
+- [ ] private repo である
+- [ ] テンプレートからの複製である
+
+## 利用規約
+- [ ] 自社利用限定に該当する（事業者本人）
+- [ ] TERMS.md / data-policy.md に同意
+
+## プロファイル
+- [ ] profile/delivery-profile.json 作成済み
+- [ ] tools/check-profile.sh green
+
+## 次に実行するコマンド
+```
+
+## ガードレール
+
+- 中間業者としての利用（複数クライアント運用）が判明した場合は、TERMS 第 2 条により本キットを利用できないことを丁寧に伝え、セットアップを進めません。
+- プロファイルに社名・住所詳細・秘匿値を書き込みません（属性のみ）。
+- 数値（従業員数等）を推測で埋めません。未回答は null（絞らない）にします。

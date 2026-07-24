@@ -1,0 +1,13 @@
+# gitleaks config — default rules plus fixture allowlist.
+# Real secrets never belong in this repo (notifier contract §4): channel
+# credentials live in GitHub Actions Secrets / local env only.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures contain sha256 hashes and example.jp URLs, not secrets."
+paths = [
+  '''tests/fixtures/.*''',
+  '''lib/VENDORED\.md''',
+]
