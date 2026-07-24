@@ -1,0 +1,51 @@
+{
+  "digest_version": 1,
+  "date": "2026-07-10",
+  "feed_generated_at": "2026-07-09T21:00:00Z",
+  "warnings": [],
+  "dropped_count": 0,
+  "items": [
+    {
+      "id": "1002",
+      "title": "全国対象 設備投資支援補助金（金額不明サンプル）",
+      "detailed_url": "https://example.jp/subsidy/1002",
+      "application_deadline": "2026-08-15",
+      "maximum_amount": "1",
+      "prefectures": [
+        "zenkoku"
+      ],
+      "municipality": null,
+      "gov_level": "national",
+      "institution_name": "中小企業庁（サンプル）",
+      "notified_as": "new"
+    },
+    {
+      "id": "1001",
+      "title": "都内中小企業DX推進助成金（サンプル）",
+      "detailed_url": "https://example.jp/subsidy/1001",
+      "application_deadline": "2026-09-30",
+      "maximum_amount": 5000000,
+      "prefectures": [
+        "tokyo"
+      ],
+      "municipality": null,
+      "gov_level": "prefecture",
+      "institution_name": "東京都（サンプル）",
+      "notified_as": "new"
+    },
+    {
+      "id": "1003",
+      "title": "世田谷区 商店街ITサイネージ導入補助（サンプル）",
+      "detailed_url": "https://example.jp/subsidy/1003",
+      "application_deadline": "2026-12-01",
+      "maximum_amount": 1000000,
+      "prefectures": [
+        "tokyo"
+      ],
+      "municipality": "世田谷区",
+      "gov_level": "municipal",
+      "institution_name": "世田谷区（サンプル）",
+      "notified_as": "new"
+    }
+  ]
+}

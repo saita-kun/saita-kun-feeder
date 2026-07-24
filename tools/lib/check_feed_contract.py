@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Feed contract v1 conformance checker (stdlib only).
 
-Validates a feed directory (meta.json + subsidies.json.gz and/or subsidies.json)
+Validates a feed directory (meta.json + subsidies.json.gz)
 against docs/design/feed-contract-v1.md. This is the producer acceptance gate:
 a producer's real output must pass this checker.
 
-Usage: check_feed_contract.py <feed_dir>
+Usage: check_feed_contract.py [--allow-raw-fixture] <feed_dir>
 Exit 0 when conformant; exit 1 with one error per line otherwise.
 """
 
@@ -155,11 +155,16 @@ def check_row(row, idx, errors):
 
 
 def main(argv):
-    if len(argv) != 2:
+    allow_raw_fixture = False
+    args = argv[1:]
+    if args and args[0] == "--allow-raw-fixture":
+        allow_raw_fixture = True
+        args = args[1:]
+    if len(args) != 1:
         print(__doc__.strip(), file=sys.stderr)
         return 2
 
-    feed_dir = Path(argv[1])
+    feed_dir = Path(args[0])
     errors = []
 
     meta_path = feed_dir / "meta.json"
@@ -191,10 +196,17 @@ def main(argv):
         except OSError as e:
             print(f"ERROR: cannot gunzip subsidies.json.gz: {e}", file=sys.stderr)
             return 1
-    elif raw_path.is_file():
+    elif allow_raw_fixture and raw_path.is_file():
         data_bytes = raw_path.read_bytes()
+    elif raw_path.is_file():
+        print(
+            f"ERROR: subsidies.json.gz is required in {feed_dir} "
+            "(use --allow-raw-fixture only for raw local fixtures)",
+            file=sys.stderr,
+        )
+        return 1
     else:
-        print(f"ERROR: neither subsidies.json.gz nor subsidies.json found in {feed_dir}", file=sys.stderr)
+        print(f"ERROR: subsidies.json.gz not found in {feed_dir}", file=sys.stderr)
         return 1
 
     if isinstance(gz_meta.get("sha256_uncompressed"), str) and \

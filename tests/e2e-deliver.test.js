@@ -10,16 +10,20 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const zlib = require('node:zlib');
 const { spawnSync } = require('node:child_process');
+const ledgerLib = require('../lib/ledger');
 
 const ROOT = path.resolve(__dirname, '..');
 const FEED_SAMPLE = path.join(ROOT, 'tests', 'fixtures', 'feed-sample');
 const GOLDEN_DIGEST = path.join(ROOT, 'tests', 'fixtures', 'golden-digest', 'digest-2026-07-10-dryrun.md');
-const E2E_FAIL_CHANNEL = path.join(ROOT, 'channels', 'e2e-fail');
+const GOLDEN_DIGEST_JSON = path.join(ROOT, 'tests', 'fixtures', 'golden-digest', 'digest-2026-07-10-dryrun.json');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'feeder-e2e-'));
+const createdChannelDirs = new Set();
 after(() => {
   fs.rmSync(tmp, { recursive: true, force: true });
-  fs.rmSync(E2E_FAIL_CHANNEL, { recursive: true, force: true });
+  for (const dir of createdChannelDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 function sha256(buf) {
@@ -35,6 +39,24 @@ function writeProfile(name, overrides = {}) {
   const p = path.join(tmp, name);
   fs.writeFileSync(p, JSON.stringify(profile));
   return p;
+}
+
+function writeChannel(name, sendScript) {
+  const dir = path.join(ROOT, 'channels', name);
+  createdChannelDirs.add(dir);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'channel.json'),
+    JSON.stringify({
+      contract_version: 1,
+      name,
+      description: `test-only ${name} channel`,
+      requires_env: [],
+    })
+  );
+  const sendPath = path.join(dir, 'send');
+  fs.writeFileSync(sendPath, sendScript);
+  fs.chmodSync(sendPath, 0o755);
 }
 
 function run(args) {
@@ -82,14 +104,19 @@ test('E2E(1) first run: digest is byte-identical to golden', () => {
   const digest = fs.readFileSync(path.join(outDir, 'digest-2026-07-10-dryrun.md'), 'utf8');
   const golden = fs.readFileSync(GOLDEN_DIGEST, 'utf8');
   assert.strictEqual(digest, golden);
+  const digestJson = fs.readFileSync(path.join(outDir, 'digest-2026-07-10-dryrun.json'), 'utf8');
+  const goldenJson = fs.readFileSync(GOLDEN_DIGEST_JSON, 'utf8');
+  assert.strictEqual(digestJson, goldenJson);
 });
 
 test('E2E(2) ledger records 1001/1002/1003 as sent (new), excludes 1004/1005', () => {
   const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
   assert.deepStrictEqual(Object.keys(ledger.entries).sort(), ['1001', '1002', '1003']);
   for (const id of ['1001', '1002', '1003']) {
+    assert.strictEqual(ledger.entries[id].content_hash, undefined);
     const ch = ledger.entries[id].channels.dryrun;
     assert.strictEqual(ch.status, 'sent');
+    assert.match(ch.last_sent_hash, /^[0-9a-f]{64}$/);
     assert.strictEqual(ch.notified_as, 'new');
     assert.strictEqual(ch.last_attempt_at, '2026-07-10T00:00:00.000Z');
   }
@@ -125,6 +152,63 @@ test('E2E(4) content-hash change re-notifies exactly one row as updated', () => 
   assert.match(digest, /マッチ 1 件（新着 0 \/ 更新 1 \/ 再送 0）/);
 });
 
+test('channel-local hashes: a content update is delivered to every configured channel', () => {
+  const channelNames = ['e2e-a', 'e2e-b'];
+  for (const name of channelNames) {
+    writeChannel(name, '#!/usr/bin/env bash\nset -euo pipefail\ncat "$1" >/dev/null\n');
+  }
+
+  const multiProfile = writeProfile('profile-multi.json', {
+    channels: channelNames.map((name) => ({ name, enabled: true })),
+  });
+  const multiLedger = path.join(tmp, 'ledger-multi.json');
+  const originalData = JSON.parse(fs.readFileSync(path.join(FEED_SAMPLE, 'subsidies.json'), 'utf8'));
+  const oldIso = '2026-07-10T00:00:00.000Z';
+  const seeded = { ledger_version: 1, entries: {} };
+  for (const id of ['1001', '1002', '1003']) {
+    const subsidy = originalData.subsidies.find((s) => s.id === id);
+    const hash = ledgerLib.contentHash(subsidy);
+    seeded.entries[id] = { channels: {} };
+    for (const name of channelNames) {
+      seeded.entries[id].channels[name] = {
+        status: 'sent',
+        last_sent_hash: hash,
+        first_notified_at: oldIso,
+        last_attempt_at: oldIso,
+        retry_count: 0,
+        notified_as: 'new',
+      };
+    }
+  }
+  fs.writeFileSync(multiLedger, `${JSON.stringify(seeded, null, 2)}\n`);
+
+  const mutDir = path.join(tmp, 'feed-mut-multi');
+  writeMutatedFeed(mutDir, (data) => {
+    data.subsidies.find((s) => s.id === '1001').maximum_amount = 6000000;
+  });
+  const res = run([
+    '--feed', mutDir,
+    '--profile', multiProfile,
+    '--ledger', multiLedger,
+    '--out', outDir,
+    '--today', '2026-07-11',
+  ]);
+  assert.strictEqual(res.status, 0, res.stderr);
+
+  const ledger = JSON.parse(fs.readFileSync(multiLedger, 'utf8'));
+  for (const name of channelNames) {
+    const ch = ledger.entries['1001'].channels[name];
+    assert.strictEqual(ch.status, 'sent');
+    assert.strictEqual(ch.notified_as, 'updated');
+    assert.strictEqual(ch.last_attempt_at, '2026-07-11T00:00:00.000Z');
+    assert.notStrictEqual(ch.last_sent_hash, seeded.entries['1001'].channels[name].last_sent_hash);
+
+    const digest = fs.readFileSync(path.join(outDir, `digest-2026-07-11-${name}.md`), 'utf8');
+    assert.match(digest, /マッチ 1 件（新着 0 \/ 更新 1 \/ 再送 0）/);
+  }
+  assert.strictEqual(ledger.entries['1002'].channels['e2e-b'].last_attempt_at, oldIso);
+});
+
 test('E2E(5) stale feed surfaces a warning banner in the digest', () => {
   const freshLedger = path.join(tmp, 'ledger-stale.json');
   const res = run([
@@ -155,20 +239,40 @@ test('dry-run never mutates the ledger', () => {
   assert.match(res.stdout, /SAITA_FEEDER_DRY_RUN=1/);
 });
 
+test('dry-run invokes configured enabled channels with SAITA_FEEDER_DRY_RUN=1', () => {
+  writeChannel('e2e-dry', [
+    '#!/usr/bin/env bash',
+    'set -euo pipefail',
+    'if [ "${SAITA_FEEDER_DRY_RUN:-0}" != "1" ]; then',
+    '  echo "missing dry-run env" >&2',
+    '  exit 7',
+    'fi',
+    'node -e "JSON.parse(require(\'fs\').readFileSync(0, \'utf8\'))"',
+    'echo "configured dry-run channel: $1"',
+    '',
+  ].join('\n'));
+  const dryProfile = writeProfile('profile-dry-configured.json', {
+    channels: [{ name: 'e2e-dry', enabled: true }],
+  });
+  const dryLedger = path.join(tmp, 'ledger-dry-configured.json');
+  const dryOut = path.join(tmp, 'out-dry-configured');
+  const res = run([
+    '--feed', FEED_SAMPLE,
+    '--profile', dryProfile,
+    '--ledger', dryLedger,
+    '--out', dryOut,
+    '--today', '2026-07-10',
+    '--dry-run',
+  ]);
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.match(res.stdout, /configured dry-run channel:/);
+  assert.ok(fs.existsSync(path.join(dryOut, 'digest-2026-07-10-e2e-dry.md')));
+  assert.ok(!fs.existsSync(path.join(dryOut, 'digest-2026-07-10-dryrun.md')));
+  assert.ok(!fs.existsSync(dryLedger), 'dry-run must not create a ledger');
+});
+
 test('failing channel: recorded as failed, backoff skips, next day retries', () => {
-  fs.mkdirSync(E2E_FAIL_CHANNEL, { recursive: true });
-  fs.writeFileSync(
-    path.join(E2E_FAIL_CHANNEL, 'channel.json'),
-    JSON.stringify({
-      contract_version: 1,
-      name: 'e2e-fail',
-      description: 'test-only failing channel',
-      requires_env: [],
-    })
-  );
-  const sendPath = path.join(E2E_FAIL_CHANNEL, 'send');
-  fs.writeFileSync(sendPath, '#!/usr/bin/env bash\nif [ "${SAITA_FEEDER_DRY_RUN:-0}" = "1" ]; then exit 0; fi\nexit 1\n');
-  fs.chmodSync(sendPath, 0o755);
+  writeChannel('e2e-fail', '#!/usr/bin/env bash\nif [ "${SAITA_FEEDER_DRY_RUN:-0}" = "1" ]; then exit 0; fi\nexit 1\n');
 
   const failProfile = writeProfile('profile-fail.json', {
     channels: [{ name: 'e2e-fail', enabled: true }],

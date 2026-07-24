@@ -89,6 +89,30 @@
         "purpose_startup": { "$ref": "#/$defs/flag" },
         "purpose_succession": { "$ref": "#/$defs/flag" }
       },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "gov_level": { "const": "national" }
+            },
+            "required": ["gov_level"]
+          },
+          "then": {
+            "properties": {
+              "prefectures": { "const": ["zenkoku"] }
+            }
+          },
+          "else": {
+            "properties": {
+              "prefectures": {
+                "not": {
+                  "contains": { "const": "zenkoku" }
+                }
+              }
+            }
+          }
+        }
+      ],
       "additionalProperties": true
     }
   }

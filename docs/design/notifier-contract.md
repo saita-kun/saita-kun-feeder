@@ -30,7 +30,7 @@ send <digest.md のパス>
 
 ## 3. SAITA_FEEDER_DRY_RUN（MUST）
 
-環境変数 `SAITA_FEEDER_DRY_RUN=1` がセットされている場合、アダプタは**ネットワーク副作用を一切起こさず**、「何をするつもりか」を stdout に出力して exit 0 しなければならない。`/deliver --dry-run` と `tools/check-channels.sh` はこのモードで起動する。
+環境変数 `SAITA_FEEDER_DRY_RUN=1` がセットされている場合、アダプタは**ネットワーク副作用を一切起こさず**、「何をするつもりか」を stdout に出力して exit 0 しなければならない。`/deliver --dry-run` は通常実行と同じく profile の enabled channels を解決し、その各アダプタをこのモードで起動する。有効チャネルがない場合のみ `dryrun` チャネルに fallback する。`tools/check-channels.sh` もこのモードで起動する。
 
 ## 4. 秘匿値の扱い（MUST）
 

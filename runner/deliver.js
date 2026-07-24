@@ -70,12 +70,12 @@ function enforceTermsGate(profile) {
 }
 
 function resolveChannels(profile, dryRun) {
-  if (dryRun) return [{ name: 'dryrun' }];
   const enabled = (Array.isArray(profile.channels) ? profile.channels : []).filter(
     (c) => c && c.enabled !== false && typeof c.name === 'string'
   );
   if (enabled.length === 0) {
-    console.log('有効なチャネルがありません — dryrun チャネルで実行します（/setup-channel で設定できます）');
+    const suffix = dryRun ? '（dry-run fallback）' : '（/setup-channel で設定できます）';
+    console.log(`有効なチャネルがありません — dryrun チャネルで実行します${suffix}`);
     return [{ name: 'dryrun' }];
   }
   return enabled;

@@ -28,6 +28,16 @@ python3 - "$TMP/upstream" <<'EOF'
 import json, pathlib, shutil, sys
 upstream = pathlib.Path(sys.argv[1])
 manifest = json.loads((upstream / "core-manifest.json").read_text())
+deliver_rel = ".github/workflows/deliver.yml"
+upstream_deliver = upstream / deliver_rel
+local_deliver = pathlib.Path(deliver_rel)
+if upstream_deliver.is_file() and local_deliver.is_file() and upstream_deliver.read_bytes() != local_deliver.read_bytes():
+    print(
+        "WARN: .github/workflows/deliver.yml differs from upstream; "
+        "/setup-channel may append env:, so it is adopter-owned. "
+        "Please review the upstream diff manually.",
+        file=sys.stderr,
+    )
 copied = 0
 for rel in manifest["core_paths"]:
     src = upstream / rel

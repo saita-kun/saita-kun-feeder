@@ -9,7 +9,7 @@ saita-kun-feeder は planner と同じ「テンプレート repo」モデルで�
 - ガバナンス: README / LICENSE / NOTICE / TERMS.md / CLAUDE.md / AGENTS.md / docs/
 - 契約: `docs/design/feed-contract-v1.md`・`docs/design/notifier-contract.md`・`schemas/`
 - ロジック: `lib/`（vendored 3 ファイル + feeder 層）・`runner/`・`channels/dryrun/`
-- 検査: `tools/`・`tests/`・`.github/workflows/`
+- 検査: `tools/`・`tests/`・`.github/workflows/validate.yml`
 - コマンド: `.claude/commands/`
 
 ## 育成層（利用者所有 — 上流更新で触らない）
@@ -22,6 +22,7 @@ saita-kun-feeder は planner と同じ「テンプレート repo」モデルで�
 | `state/notified.json` | 冪等台帳 | **コミットする**（実行間の永続 + 監査） |
 | `state/cache/` | 直近正常フィードのキャッシュ | gitignore |
 | `channels/my-*/` | AI 生成の配信アダプタ | コミットする（秘匿値は含めない契約） |
+| `.github/workflows/deliver.yml` | 配信 workflow。`/setup-channel` が `env:` 追記を案内するため採用者所有。上流の改善は `update-core` 対象外 | **コミットする** |
 | `input/` | 同意記録（setup-state.json）等 | gitignore |
 | `output/` | 生成ダイジェスト | gitignore |
 

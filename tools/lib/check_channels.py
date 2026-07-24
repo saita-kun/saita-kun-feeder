@@ -21,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 CHANNELS_DIR = ROOT / "channels"
 FIXTURE_MD = ROOT / "tests" / "fixtures" / "golden-digest" / "digest-2026-07-10-dryrun.md"
+FIXTURE_JSON = ROOT / "tests" / "fixtures" / "golden-digest" / "digest-2026-07-10-dryrun.json"
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 ENV_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -71,7 +72,7 @@ def check_send(chan_dir, errors):
     try:
         res = subprocess.run(
             [str(send), str(FIXTURE_MD)],
-            input=b"{}",
+            input=FIXTURE_JSON.read_bytes(),
             env=env,
             capture_output=True,
             timeout=60,
@@ -90,6 +91,9 @@ def main():
     errors = []
     if not FIXTURE_MD.is_file():
         print(f"ERROR: fixture digest missing: {FIXTURE_MD}", file=sys.stderr)
+        return 1
+    if not FIXTURE_JSON.is_file():
+        print(f"ERROR: fixture digest JSON missing: {FIXTURE_JSON}", file=sys.stderr)
         return 1
 
     chan_dirs = sorted(p for p in CHANNELS_DIR.iterdir() if p.is_dir())

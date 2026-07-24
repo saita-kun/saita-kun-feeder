@@ -7,7 +7,9 @@ import sys
 from pathlib import Path
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-CH_REQUIRED = {"status", "first_notified_at", "last_attempt_at", "retry_count", "notified_as"}
+ENTRY_REQUIRED = {"channels"}
+ENTRY_ALLOWED = {"channels"}
+CH_REQUIRED = {"status", "last_sent_hash", "first_notified_at", "last_attempt_at", "retry_count", "notified_as"}
 
 
 def main(argv):
@@ -31,8 +33,12 @@ def main(argv):
         if not isinstance(entry, dict):
             errors.append(f"{where}: must be an object")
             continue
-        if not isinstance(entry.get("content_hash"), str) or not SHA256_RE.match(entry["content_hash"]):
-            errors.append(f"{where}: content_hash must be a sha256 hex")
+        missing = ENTRY_REQUIRED - set(entry)
+        if missing:
+            errors.append(f"{where}: missing {sorted(missing)}")
+        extra = set(entry) - ENTRY_ALLOWED
+        if extra:
+            errors.append(f"{where}: unknown keys {sorted(extra)}")
         channels = entry.get("channels")
         if not isinstance(channels, dict):
             errors.append(f"{where}: channels must be an object")
@@ -50,6 +56,8 @@ def main(argv):
                 errors.append(f"{cw}: unknown keys {sorted(extra)}")
             if ch.get("status") not in ("sent", "failed"):
                 errors.append(f"{cw}: status must be sent|failed")
+            if not isinstance(ch.get("last_sent_hash"), str) or not SHA256_RE.match(ch["last_sent_hash"]):
+                errors.append(f"{cw}: last_sent_hash must be a sha256 hex")
             if ch.get("notified_as") not in ("new", "updated"):
                 errors.append(f"{cw}: notified_as must be new|updated")
             rc = ch.get("retry_count")

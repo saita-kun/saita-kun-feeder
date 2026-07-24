@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/saita-kun/saita-kun-feeder/schemas/ledger.schema.json",
   "title": "idempotency ledger (state/notified.json)",
-  "description": "File port of the upstream SQL claim model (dr-006). content_hash covers the FIXED field list exported as HASH_FIELDS in lib/ledger.js (description is deliberately excluded); changing that list re-notifies every row and requires the dr-006 migration procedure. Contains only subsidy ids and hashes — no company data, no secrets.",
+  "description": "File port of the upstream SQL claim model (dr-006). channels.*.last_sent_hash covers the FIXED field list exported as HASH_FIELDS in lib/ledger.js (description is deliberately excluded); changing that list re-notifies every row/channel. Contains only subsidy ids and hashes — no company data, no secrets.",
   "type": "object",
   "required": ["ledger_version", "entries"],
   "properties": {
@@ -11,16 +11,16 @@
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "required": ["content_hash", "channels"],
+        "required": ["channels"],
         "properties": {
-          "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
           "channels": {
             "type": "object",
             "additionalProperties": {
               "type": "object",
-              "required": ["status", "first_notified_at", "last_attempt_at", "retry_count", "notified_as"],
+              "required": ["status", "last_sent_hash", "first_notified_at", "last_attempt_at", "retry_count", "notified_as"],
               "properties": {
                 "status": { "type": "string", "enum": ["sent", "failed"] },
+                "last_sent_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
                 "first_notified_at": { "type": "string" },
                 "last_attempt_at": { "type": "string" },
                 "retry_count": { "type": "integer", "minimum": 0 },
