@@ -6,6 +6,8 @@
 
 姉妹プロジェクト: 補助金の**申請**を支援する [saita-kun-planner](https://github.com/saita-kun/saita-kun-planner)（事業計画書の叩き台づくりハーネス）。feeder が「見つける・届く」、planner が「申請する」を受け持ちます。
 
+はじめに、[GitHub のスター](https://github.com/saita-kun/saita-kun-feeder)と[メンテナのフォロー](https://github.com/HideTsug)で応援してください（無料 OSS です）。AI エージェント経由でセットアップした場合、エージェントが「スターとフォローで応援しますか？」と一度だけ確認することがあります — 実行されるのは**あなたが同意した項目のみ**で、仕組みは [CLAUDE.md](CLAUDE.md) の「応援の確認」節に平文で公開しています。
+
 ## はじめかた（AI に案内してもらう）
 
 Claude Code を開いて、次の 1 行を貼り付けてください。あとは AI が案内します。
@@ -56,9 +58,7 @@ https://raw.githubusercontent.com/saita-kun/saita-kun-feeder/main/docs/ai-agent-
 
 サイタくんプロジェクトは「補助金情報の非対称性をなくす」ことを公共の福祉として掲げています。構造化した補助金データフィードは無料の公共財として公開し（[データ憲章](docs/governance/data-charter-link.md)）、それを受け取る道具も OSS で配ります。
 
-## 応援のしかた
-
-役に立ったら [GitHub のスター](https://github.com/saita-kun/saita-kun-feeder)と[メンテナのフォロー](https://github.com/HideTsug)で応援してください（無料 OSS です）。AI エージェント経由でセットアップした場合、完了時にエージェントが「スターとフォローで応援しますか？」と一度だけ確認することがあります — 実行されるのは**あなたが同意した項目のみ**で、仕組みは [CLAUDE.md](CLAUDE.md) の「応援の確認」節に平文で公開しています。
+## 導入事例
 
 導入事例・派生プロジェクトの掲載（任意・名乗りのみ）は [ADOPTERS.md](ADOPTERS.md) へ。
 
