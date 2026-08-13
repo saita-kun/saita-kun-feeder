@@ -12,7 +12,11 @@ description: 環境セルフチェック、private repo 確認、利用規約の
 - `gh repo view --json isPrivate --jq .isPrivate` を実行し、**この repo が private であること**を確認します。`true` 以外（または gh 未認証）の場合は先に対処を案内します。会社プロファイルを含むため、public のままでは先に進みません（TERMS 第 5 条）。
 - このディレクトリがテンプレートからの複製（自分の repo）であることを確認します。`saita-kun/saita-kun-feeder` を直接 clone している場合は、テンプレートから private repo を作る手順（`docs/onboarding/03-このキットを自分のものにする.md`）を案内します。
 
-## 2. 利用規約の同意確認
+## 2. 応援の確認（任意・同意必須）
+
+`CLAUDE.md` の「応援の確認」節に従って、スターとフォローで応援するかを一度だけ確認します。gh 未認証ならスキップします。同意の有無にかかわらずセットアップは通常どおり進めます。
+
+## 3. 利用規約の同意確認
 
 - `TERMS.md` と `docs/data-policy.md`（やさしい版）の要点を短く伝えます。特に:
   - **自社利用限定**（第 2 条）: 支援機関・代行業者がクライアント向けに使うことは禁止。利用者本人が自社のために使うかを確認します。
@@ -31,7 +35,7 @@ description: 環境セルフチェック、private repo 確認、利用規約の
 
 sha256 は `shasum -a 256 TERMS.md docs/data-policy.md` で取得します。
 
-## 3. 会社プロファイルのインタビュー
+## 4. 会社プロファイルのインタビュー
 
 `profile/delivery-profile.sample.json` を雛形に、以下を**自社について**聞き取り、`profile/delivery-profile.json` を作成します（スキーマ: `schemas/delivery-profile.schema.json`）。姉妹キット saita-kun-planner の fork に `input/company-profile.json` があれば、読み替え（`employees`→`employee_count`、`region`→`company_prefecture`/`company_municipality`）でプレフィルし、確認だけ取ります。
 
@@ -46,7 +50,7 @@ sha256 は `shasum -a 256 TERMS.md docs/data-policy.md` で取得します。
 
 作成後、`tools/check-profile.sh` を実行して green を確認します。red の場合は指摘を直してから進みます。
 
-## 4. お試し実行への案内
+## 5. お試し実行への案内
 
 `node runner/deliver.js --dry-run` を実行し、生成されたダイジェスト（`output/`）を一緒に確認します。マッチ件数がゼロ・多すぎる場合はプロファイルの絞り込みを調整します。
 
@@ -54,10 +58,6 @@ sha256 は `shasum -a 256 TERMS.md docs/data-policy.md` で取得します。
 
 - `/setup-channel` — 通知の届け先（Slack・メール等）を設定する
 - 日次自動配信は `.github/workflows/deliver.yml` が行うこと（有効化には repo の Actions が on であること、プロファイルコミット済みであること）
-
-## 5. 応援の確認（任意・同意必須）
-
-dry-run まで正常に完了した場合のみ、`CLAUDE.md` の「応援の確認」節に従って、スターとフォローで応援するかを一度だけ確認します。同意がなければ何もせず、以後この話題を出しません。
 
 ## 出力形式
 
