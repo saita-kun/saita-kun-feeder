@@ -55,6 +55,10 @@ sha256 は `shasum -a 256 TERMS.md docs/data-policy.md` で取得します。
 - `/setup-channel` — 通知の届け先（Slack・メール等）を設定する
 - 日次自動配信は `.github/workflows/deliver.yml` が行うこと（有効化には repo の Actions が on であること、プロファイルコミット済みであること）
 
+## 5. 応援の確認（任意・同意必須）
+
+dry-run まで正常に完了した場合のみ、`CLAUDE.md` の「応援の確認」節に従って、スターとフォローで応援するかを一度だけ確認します。同意がなければ何もせず、以後この話題を出しません。
+
 ## 出力形式
 
 ```markdown

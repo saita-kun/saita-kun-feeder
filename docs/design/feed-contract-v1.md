@@ -73,7 +73,7 @@
 | `acceptance_start` | string \| null | | |
 | `maximum_amount` | number \| string \| null | | §4.2 の sentinel 規約 |
 | `funding_limit` | string \| null | | 表示用の補足（上限の但し書き等） |
-| `subsidy_rate` | string \| number \| null | | 数値化可能な場合のみ rate フィルタで評価される |
+| `subsidy_rate` | string \| number \| null | | **数値の場合の単位は比率**（`0.5` = 50%）。percent 表記の元データは producer が比率に正規化して出力する。数値化可能な場合のみ rate フィルタで評価される |
 | `eligible_scale` | string \| null | | `small` / `sme` / `any` / null |
 | `support_type` | string \| null | | |
 | `institution_name` | string \| null | | 発行主体の表示用 |

@@ -2,7 +2,7 @@
 
 自社に合う補助金の新着情報を、**あなたの会社のプロファイルでマッチングして、あなたの好きな場所（Slack・メール・LINE など）に自動で届ける** OSS ハーネスです。
 
-サイタくんが無料公開している[補助金公開データフィード](docs/design/feed-contract-v1.md)（全国の補助金・約 1.4 万件、日次更新）を取得し、あなたの Claude Code がセットアップから配信チャネルの実装までを伴走します。サーバー不要・データベース不要・API キー不要。GitHub Actions（または手元の cron）だけで動きます。
+サイタくんが無料公開している[補助金公開データフィード](docs/design/feed-contract-v1.md)（全国の補助金・約 1.2 万件、日次更新）を取得し、あなたの Claude Code がセットアップから配信チャネルの実装までを伴走します。サーバー不要・データベース不要・API キー不要。GitHub Actions（または手元の cron）だけで動きます。
 
 姉妹プロジェクト: 補助金の**申請**を支援する [saita-kun-planner](https://github.com/saita-kun/saita-kun-planner)（事業計画書の叩き台づくりハーネス）。feeder が「見つける・届く」、planner が「申請する」を受け持ちます。
 
@@ -55,6 +55,12 @@ https://raw.githubusercontent.com/saita-kun/saita-kun-feeder/main/docs/ai-agent-
 ## なぜ無料で公開するのか
 
 サイタくんプロジェクトは「補助金情報の非対称性をなくす」ことを公共の福祉として掲げています。構造化した補助金データフィードは無料の公共財として公開し（[データ憲章](docs/governance/data-charter-link.md)）、それを受け取る道具も OSS で配ります。
+
+## 応援のしかた
+
+役に立ったら [GitHub のスター](https://github.com/saita-kun/saita-kun-feeder)と[メンテナのフォロー](https://github.com/HideTsug)で応援してください（無料 OSS です）。AI エージェント経由でセットアップした場合、完了時にエージェントが「スターとフォローで応援しますか？」と一度だけ確認することがあります — 実行されるのは**あなたが同意した項目のみ**で、仕組みは [CLAUDE.md](CLAUDE.md) の「応援の確認」節に平文で公開しています。
+
+導入事例・派生プロジェクトの掲載（任意・名乗りのみ）は [ADOPTERS.md](ADOPTERS.md) へ。
 
 ## ライセンス
 
