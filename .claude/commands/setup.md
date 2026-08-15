@@ -45,7 +45,7 @@ sha256 は `shasum -a 256 TERMS.md docs/data-policy.md` で取得します。
 4. 従業員数（`employee_count`。規模要件の判定に使用。答えたくなければ null = 規模で絞らない）
 5. 任意の絞り込み: 金額レンジ・締切までの余裕日数・補助率下限
 6. `terms_accepted_sha256` に手順 2 で取得した TERMS.md の sha256 を設定
-7. `feed_base_url` は既定値のままにする（変更は上級者向け。dr-004）
+7. `feed_base_url` は既定値（サイタくん公開フィード）のままでよい。別フィードに乗り換える場合のみ変更する（dr-004）。フィード URL の一次情報は https://www.subsidy-support.tech/llms.txt の「公開データフィード」節
 8. `channels` は `[{"name": "dryrun", "enabled": true}]` から始める
 
 作成後、`tools/check-profile.sh` を実行して green を確認します。red の場合は指摘を直してから進みます。
@@ -53,6 +53,8 @@ sha256 は `shasum -a 256 TERMS.md docs/data-policy.md` で取得します。
 ## 5. お試し実行への案内
 
 `node runner/deliver.js --dry-run` を実行し、生成されたダイジェスト（`output/`）を一緒に確認します。マッチ件数がゼロ・多すぎる場合はプロファイルの絞り込みを調整します。
+
+`フィード取得に失敗しました` で落ちた場合の一次切り分け: `profile/delivery-profile.json` の `feed_base_url` の値を確認し、https://www.subsidy-support.tech/llms.txt の「公開データフィード」節に記載の URL と照合します（プレースホルダのままなら `tools/check-profile.sh` が red で指摘します）。
 
 その後、次のステップとして以下を案内します:
 

@@ -17,6 +17,20 @@ const { prefectureMapping } = require(path.join(ROOT, 'lib', 'prefecture-mapper'
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const CHANNEL_NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
+const PLACEHOLDER_TLDS = ['invalid', 'example', 'test'];
+const EXAMPLE_DOMAINS = ['example.com', 'example.org', 'example.net'];
+
+function isPlaceholderFeedBaseUrl(value) {
+  if (value.includes('REPLACED-BY-SETUP')) return true;
+
+  try {
+    const hostname = new URL(value).hostname.replace(/\.$/, '');
+    return PLACEHOLDER_TLDS.some((tld) => hostname === tld || hostname.endsWith(`.${tld}`)) ||
+      EXAMPLE_DOMAINS.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
 
 function main() {
   const args = process.argv.slice(2);
@@ -101,6 +115,8 @@ function main() {
 
   if (typeof profile.feed_base_url !== 'string' || !profile.feed_base_url) {
     errors.push('feed_base_url must be a non-empty string');
+  } else if (isPlaceholderFeedBaseUrl(profile.feed_base_url)) {
+    errors.push(`feed_base_url is a placeholder (${JSON.stringify(profile.feed_base_url)}) — set the real feed URL (see https://www.subsidy-support.tech/llms.txt "公開データフィード")`);
   }
 
   if (!Array.isArray(profile.channels)) {

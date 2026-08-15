@@ -13,7 +13,7 @@
   "subsidy_rate_min": null,
   "weekly_cap": 15,
   "daily_cap": 5,
-  "feed_base_url": "https://feed.example.invalid/v1",
+  "feed_base_url": "https://hr05a50yhpejuozn.public.blob.vercel-storage.com/feed/v1",
   "channels": [
     { "name": "dryrun", "enabled": true }
   ],

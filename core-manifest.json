@@ -56,6 +56,7 @@
     "schemas/feed-meta.schema.json",
     "schemas/feed-subsidy.schema.json",
     "schemas/ledger.schema.json",
+    "tests/check-profile.test.js",
     "tests/e2e-deliver.test.js",
     "tests/feed-client.test.js",
     "tests/fixtures/feed-sample/meta.json",
