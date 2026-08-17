@@ -8,7 +8,7 @@ description: 環境セルフチェック、private repo 確認、利用規約の
 
 ## 1. 環境セルフチェック
 
-- `bash --version`・`python3 --version`・`node --version`（Node 20 以上）を確認します。node は配信ランナー、python3 は `tools/check-*.sh` に必要です。見つからない場合は各公式サイトのインストーラーを案内し、導入後に `/setup` を再実行してもらいます。
+- `bash --version`・`python3 --version`・`node --version`（Node 22 以上）を確認します。node は配信ランナー、python3 は `tools/check-*.sh` に必要です。見つからない場合は各公式サイトのインストーラーを案内し、導入後に `/setup` を再実行してもらいます。
 - `gh repo view --json isPrivate --jq .isPrivate` を実行し、**この repo が private であること**を確認します。`true` 以外（または gh 未認証）の場合は先に対処を案内します。会社プロファイルを含むため、public のままでは先に進みません（TERMS 第 5 条）。
 - このディレクトリがテンプレートからの複製（自分の repo）であることを確認します。`saita-kun/saita-kun-feeder` を直接 clone している場合は、テンプレートから private repo を作る手順（`docs/onboarding/03-このキットを自分のものにする.md`）を案内します。
 
@@ -67,7 +67,7 @@ sha256 は `shasum -a 256 TERMS.md docs/data-policy.md` で取得します。
 # セットアップ確認
 
 ## 環境
-- [ ] bash / python3 / node 20+
+- [ ] bash / python3 / node 22+
 - [ ] private repo である
 - [ ] テンプレートからの複製である
 
