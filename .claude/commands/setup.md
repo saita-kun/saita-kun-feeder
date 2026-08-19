@@ -31,7 +31,8 @@ description: 環境セルフチェック、private repo 確認、利用規約の
 - **この repo が private であること**を確認します（会社プロファイルを含むため。TERMS 第 5 条）。ゴールは「origin repo が private である証跡を 1 つ得ること」です。
   - 第一手段: `gh repo view --json isPrivate --jq .isPrivate` が `true` を返すこと。
   - `false` が返った場合（＝実際に public）: repo の Settings > General > Danger Zone > Change repository visibility で Private へ変更してもらい、確認が取れるまで先に進みません。
-  - gh が未導入・未認証でコマンド自体が失敗した場合（`false` とは別の分岐として扱う）: 代替として次のいずれかで確認します。① repo の Settings 画面で Visibility が Private になっていることを利用者に目視確認してもらう。② `git remote get-url origin` から `<owner>/<repo>` を取り、未認証での `curl -s -o /dev/null -w '%{http_code}\n' https://api.github.com/repos/<owner>/<repo>` が `404`（public なら `200`）を返すことを補助証跡にする。
+  - gh が未導入・未認証でコマンド自体が失敗した場合（`false` とは別の分岐として扱う）: **repo の Settings > General で Visibility が「Private」と表示されていることを利用者に目視確認してもらいます**（この目視確認が証跡です）。TERMS 第 5 条が求めるのは Private であり、enterprise の **Internal は不可**（enterprise メンバー全員が閲覧できるため）なので、「Public ではない」ではなく「Private である」ことを確認してください。
+    - 補助的に `git remote get-url origin` から `<owner>/<repo>` を取り、未認証での `curl -s -o /dev/null -w '%{http_code}\n' https://api.github.com/repos/<owner>/<repo>` を見てもよいですが、**`404` を private の証跡にはしません**（Internal・権限不足・URL の打ち間違いでも `404` になります）。使えるのは逆向きの判定だけで、`200` が返ったら public 確定なので先に進みません。
   - TERMS 第 5 条の実行時強制は `.github/workflows/deliver.yml` の private guard が毎回の配信で行うため、`/setup` 側は停止ゲートではなく確認ゲートで足ります。
 - このディレクトリがテンプレートからの複製（自分の repo）であることを確認します。`saita-kun/saita-kun-feeder` を直接 clone している場合は、テンプレートから private repo を作る手順（`docs/onboarding/03-このキットを自分のものにする.md`）を案内します。
 
