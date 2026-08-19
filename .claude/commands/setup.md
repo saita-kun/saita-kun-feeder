@@ -10,20 +10,22 @@ description: 環境セルフチェック、private repo 確認、利用規約の
 
 **前提 OS: POSIX シェル環境（macOS / Linux / WSL2）。Windows ネイティブは非対応です。** 配信ランナーが送信スクリプト（`channels/*/send`）を実行ビット付きのまま直接 exec する構造で、契約検査（`tools/check-channels.sh`）も実行ビットを要求するため、PowerShell / コマンドプロンプトでは原理的に動きません。
 
-- ランタイムを確認します。**必須**と**後続で必要**を分けて案内してください:
+- **まず `uname -s` で OS を判定します**（bash の有無で代用しないでください。Windows でも Git Bash / MSYS が入っていれば `bash --version` は成功するため、それだけでは非対応環境を見抜けません）:
+  - `Darwin`（macOS）・`Linux` → 対応環境。次のランタイム確認へ進みます。WSL2 の中なら `Linux` が返ります（`uname -r` に `microsoft` が含まれます）。
+  - `MINGW*` / `MSYS*` / `CYGWIN*` が返る、または `uname` 自体が無い → **Windows ネイティブなので非対応**です。Git Bash が入っていても、ランナーはアダプタを実行ビット付きで直接 exec するため配信が成立しません。ここで先へ進めず、次を案内します: ① Microsoft 公式手順で WSL2 を導入する（`wsl --install`）→ ② **WSL2 のシェルの中で**この repo を clone し直す（Windows 側のパスに置いたままにしない）→ ③ WSL2 の中で `/setup` を再実行する。
+- 続けてランタイムを確認します。**必須**と**後続で必要**を分けて案内してください:
 
 | 確認コマンド | 位置づけ | 用途 |
 |---|---|---|
 | `node --version`（Node 22 以上） | 必須 | 配信ランナー `runner/deliver.js`・`tools/check-profile.sh`（node 実装） |
 | `bash --version` | 必須 | `tools/*.sh` 全般 |
 | `python3 --version` | 後続で必要 | `tools/check-channels.sh`（`/setup-channel` の契約検査）・`tools/check-ledger.sh`（`/status` の台帳検査）・`tools/check-feed-contract.sh`・`tools/validate.sh`。無くても本コマンドのプロファイル作成と `node runner/deliver.js --dry-run` は完走します |
-| `curl --version` | 後続で必要（使う場合のみ） | `/setup-channel` で **bash + curl** のアダプタを書く場合に必要。無ければ本キット必須の Node 22 の `fetch` で書けるので、導入は必須ではありません（無いことが分かっていれば AI が node で書きます） |
+| `curl --version` | 後続で必要（チャネル次第） | `/setup-channel` のアダプタ実装で使います。HTTPS webhook 系（Slack・Discord・Teams・LINE 等）なら curl が無くても Node 22 の `fetch` で書けるので必須ではありません。**メールを SMTP で送る場合は、`smtp://` に対応した curl 等の SMTP クライアントが必要**です（Node の `fetch` は HTTP(S) 専用で `smtp://` を扱えません）。無い場合は先に導入してもらうか、webhook 系のチャネルを選んでもらいます |
 
 - node が見つからない場合は <https://nodejs.org> の公式インストーラーを案内し、導入後に `/setup` を再実行してもらいます。
-- **bash が無い場合**は、インストーラーを探させる前に `uname -s` で OS を判定し、分岐して案内します（bash 不在＝ Windows と決めつけない）:
-  - Windows ネイティブ（`uname` 自体が無い、または `MINGW*` / `MSYS*` が返る）: ① Microsoft 公式手順で WSL2 を導入する（`wsl --install`）→ ② **WSL2 のシェルの中で**この repo を clone し直す（Windows 側のパスに置いたままにしない）→ ③ WSL2 の中で `/setup` を再実行する。
-  - Linux（`Linux`）で bash が無い（Alpine 等の最小構成）: すでに POSIX 環境なので WSL は不要です。そのディストリビューションのパッケージマネージャで bash を導入してもらいます（例: `apk add bash`）。
-  - macOS（`Darwin`）: bash は既定で入っています。見つからない場合は PATH の破損を疑い、`/bin/bash --version` で確認します。
+- 対応 OS（`Darwin` / `Linux`）で bash が無い場合は、インストーラーを探させずに次を案内します（この時点で Windows は上の OS 判定で除かれています）:
+  - Linux（Alpine 等の最小構成）: すでに POSIX 環境なので WSL は不要です。そのディストリビューションのパッケージマネージャで bash を導入してもらいます（例: `apk add bash`）。
+  - macOS: bash は既定で入っています。見つからない場合は PATH の破損を疑い、`/bin/bash --version` で確認します。
 - 本コマンド完了時点の受入基準（python3 が無くても満たせるもの）: `tools/check-profile.sh` が green ＋ `node runner/deliver.js --dry-run` が完走すること。どちらも node 実装なので python3 に依存しません。
 - `/setup-channel` に進む前の受入基準: python3 を導入したうえで `bash tools/validate.sh` が green（`validate: OK`）になること。**python3 が無いと validate.sh は core-manifest / feed-contract / channels / ledger の各ステップで必ず失敗する**ので、この受入基準を python3 導入前の停止ゲートに使わないでください。
 - **この repo が private であること**を確認します（会社プロファイルを含むため。TERMS 第 5 条）。ゴールは「origin repo が private である証跡を 1 つ得ること」です。
@@ -73,7 +75,9 @@ sha256 のゴールは「`TERMS.md` と `docs/data-policy.md` の**バイト列*
 node -e 'const c=require("crypto"),f=require("fs");for(const p of ["TERMS.md","docs/data-policy.md"])console.log(p, c.createHash("sha256").update(f.readFileSync(p)).digest("hex"))'
 ```
 
-環境に応じて `shasum -a 256 TERMS.md docs/data-policy.md`（macOS の既定）や `sha256sum TERMS.md docs/data-policy.md`（多くの Linux ディストリビューション）を使っても構いません。どの実装でも同じ hex になります。受入基準は「64 桁 hex が 2 つ得られ、`node runner/deliver.js --dry-run` が同意記録の不一致で落ちないこと」です。
+環境に応じて `shasum -a 256 TERMS.md docs/data-policy.md`（macOS の既定）や `sha256sum TERMS.md docs/data-policy.md`（多くの Linux ディストリビューション）を使っても構いません。どの実装でも同じ hex になります。
+
+受入基準は「書き込んだ `input/setup-state.json` の `terms_sha256` / `data_policy_sha256` を**書き込み後にもう一度算出して現行ファイルの値と突き合わせ、2 つとも一致すること**」です。`node runner/deliver.js --dry-run` をこの受入基準に使わないでください — ランナーが照合するのは `profile/delivery-profile.json` の `terms_accepted_sha256` と `TERMS.md` だけで、`input/setup-state.json` も `data_policy_sha256` も読みません。setup-state 側を誤記しても dry-run は通り、その後すべての slash command が共通不変条件（setup ゲート）で差し戻されます。
 
 ## 4. 会社プロファイルのインタビュー
 
