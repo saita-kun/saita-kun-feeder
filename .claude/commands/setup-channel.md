@@ -44,7 +44,7 @@ description: 通知の届け先（Slack・メール・LINE 等）をヒアリン
      - `gh` が無ければブラウザで repo の **Settings > Secrets and variables > Actions > New repository secret** に `<NAME>` と値を登録してもらう
   2. `.github/workflows/deliver.yml` の Deliver ステップに `env:` を追記し、その Secret を変数として渡す（コメントアウトされた例が同ファイルにあります）。この追記はアダプタとセットで行います。
 
-## 4. テスト（4 段階）
+## 4. ローカルのテスト（3 段階）
 
 1. **契約検査**: `tools/check-channels.sh` green。
 2. **DRY_RUN 自己テスト**: 本番と同じ入力（argv[1] = digest markdown、stdin = digest JSON）で起動します。
@@ -56,11 +56,20 @@ description: 通知の届け先（Slack・メール・LINE 等）をヒアリン
 
    受入基準: exit 0 であること／stdout に「どこへ何件送るつもりか」（送信先と件数）が出ること／ネットワーク副作用が無いこと（契約 §3 の MUST）。stdin を `/dev/null` にしないでください — 契約 §2 は stdin = ダイジェスト JSON と定めており、`tools/check-channels.sh` も同じ fixture JSON を stdin に流して起動するため、空 stdin で試すと契約準拠のアダプタだけが落ちて誤った「修正」を招きます。
 3. **実送信テスト**: 利用者に「1 回だけテスト送信して良いか」を確認してから、golden digest fixture を実送信し、届いたことを利用者に確認してもらう。
-4. **自動配信の疎通確認**: Actions タブから deliver ワークフローを `Run workflow`（workflow_dispatch）で 1 回手動実行し、緑になることを確認します。受入基準は「`gh secret list` か Settings 画面で Secret 名が見えること」＋「この手動実行が緑であること」。`tools/validate.sh` は `deliver.yml` を一切検査しないため、**手順 3 の `env:` 追記が正しいことを機械的に確かめられるのはこの手動実行だけ**です（追記が壊れていても日次配信は無言で止まります）。
 
 ## 5. 有効化
 
 `profile/delivery-profile.json` の `channels` に `{"name": "my-<name>", "enabled": true}` を追記し、`tools/check-profile.sh` green を確認。dryrun を残すか無効化するかを利用者に確認します。最後に変更一式をコミットするか確認します（秘匿値が含まれていないことを diff で確認してから）。
+
+## 6. 自動配信の疎通確認（**コミットと push の後に行う**）
+
+`tools/validate.sh` は `deliver.yml` を一切検査しないため、手順 3 の `env:` 追記が正しいことを機械的に確かめられるのは GitHub Actions での実行だけです（追記が壊れていても日次配信は無言で止まります）。ただし **workflow_dispatch は GitHub 上のコミットを checkout して走る**ので、次の順序を守らないと「緑」に意味がありません。
+
+1. 手順 5 の有効化（`profile.channels`）とアダプタ・`deliver.yml` の変更を**コミットして push する**。push 前に実行しても、走るのは変更前の `deliver.yml` とチャネル未有効のプロファイル（`ready=false` なら全ステップがスキップされて無条件に緑）です。
+2. Secret が登録済みであることを確認する（`gh secret list`、または Settings > Secrets and variables > Actions で名前が見えること）。
+3. push 後に Actions タブから deliver ワークフローを `Run workflow`（workflow_dispatch）で 1 回手動実行する。
+
+受入基準は「実行が緑」だけでは不足です。**実行ログの Deliver ステップに `[my-<name>] 送信成功` の行が出ていること**まで確認してください。新着・更新がなくフィード警告も無い日は、ランナーが `[my-<name>] 新着・更新なし — 配信しません` と出してアダプタを起動せずに終了します（＝緑になりますが `env:` の受け渡しは検証されていません）。その場合はその旨を利用者に伝え、翌日以降の実行ログで改めて確認します。
 
 ## ガードレール
 

@@ -17,10 +17,15 @@ description: 環境セルフチェック、private repo 確認、利用規約の
 | `node --version`（Node 22 以上） | 必須 | 配信ランナー `runner/deliver.js`・`tools/check-profile.sh`（node 実装） |
 | `bash --version` | 必須 | `tools/*.sh` 全般 |
 | `python3 --version` | 後続で必要 | `tools/check-channels.sh`（`/setup-channel` の契約検査）・`tools/check-ledger.sh`（`/status` の台帳検査）・`tools/check-feed-contract.sh`・`tools/validate.sh`。無くても本コマンドのプロファイル作成と `node runner/deliver.js --dry-run` は完走します |
+| `curl --version` | 後続で必要（使う場合のみ） | `/setup-channel` で **bash + curl** のアダプタを書く場合に必要。無ければ本キット必須の Node 22 の `fetch` で書けるので、導入は必須ではありません（無いことが分かっていれば AI が node で書きます） |
 
 - node が見つからない場合は <https://nodejs.org> の公式インストーラーを案内し、導入後に `/setup` を再実行してもらいます。
-- **bash が無い（＝ Windows ネイティブで作業している）場合**は、インストーラーを探させず次を案内します: ① Microsoft 公式手順で WSL2 を導入する（`wsl --install`）→ ② **WSL2 のシェルの中で**この repo を clone し直す（Windows 側のパスに置いたままにしない）→ ③ WSL2 の中で `/setup` を再実行する。
-- 受入基準: `bash tools/validate.sh` が green（`validate: OK`）になること。python3 未導入の間は channels / ledger / feed-contract ステップが red のままになるので、`/setup-channel` に進む前に導入してもらいます。
+- **bash が無い場合**は、インストーラーを探させる前に `uname -s` で OS を判定し、分岐して案内します（bash 不在＝ Windows と決めつけない）:
+  - Windows ネイティブ（`uname` 自体が無い、または `MINGW*` / `MSYS*` が返る）: ① Microsoft 公式手順で WSL2 を導入する（`wsl --install`）→ ② **WSL2 のシェルの中で**この repo を clone し直す（Windows 側のパスに置いたままにしない）→ ③ WSL2 の中で `/setup` を再実行する。
+  - Linux（`Linux`）で bash が無い（Alpine 等の最小構成）: すでに POSIX 環境なので WSL は不要です。そのディストリビューションのパッケージマネージャで bash を導入してもらいます（例: `apk add bash`）。
+  - macOS（`Darwin`）: bash は既定で入っています。見つからない場合は PATH の破損を疑い、`/bin/bash --version` で確認します。
+- 本コマンド完了時点の受入基準（python3 が無くても満たせるもの）: `tools/check-profile.sh` が green ＋ `node runner/deliver.js --dry-run` が完走すること。どちらも node 実装なので python3 に依存しません。
+- `/setup-channel` に進む前の受入基準: python3 を導入したうえで `bash tools/validate.sh` が green（`validate: OK`）になること。**python3 が無いと validate.sh は core-manifest / feed-contract / channels / ledger の各ステップで必ず失敗する**ので、この受入基準を python3 導入前の停止ゲートに使わないでください。
 - **この repo が private であること**を確認します（会社プロファイルを含むため。TERMS 第 5 条）。ゴールは「origin repo が private である証跡を 1 つ得ること」です。
   - 第一手段: `gh repo view --json isPrivate --jq .isPrivate` が `true` を返すこと。
   - `false` が返った場合（＝実際に public）: repo の Settings > General > Danger Zone > Change repository visibility で Private へ変更してもらい、確認が取れるまで先に進みません。
@@ -32,7 +37,9 @@ description: 環境セルフチェック、private repo 確認、利用規約の
 
 `CLAUDE.md` の「応援の確認」節に従って、スターとフォローで応援するかを一度だけ確認します。gh 未認証ならスキップします。同意の有無にかかわらずセットアップは通常どおり進めます。
 
-確認の前に `input/setup-state.json` の `support_prompt.asked_at` を読み、**値があればこの節を丸ごとスキップします**（一度断られた話題を再提示しないため）。確認を出した場合は結果を `support_prompt` に記録します（ファイルがまだ無ければ手順 3 の書き込み時にマージ）。
+確認の前に `input/setup-state.json` の `support_prompt.asked_at` を読み、**値があればこの節を丸ごとスキップします**（一度断られた話題を再提示しないため）。
+
+確認を出した場合は、**その場で** `input/setup-state.json` に `support_prompt` を書き込みます（規約同意の記録とは独立して保存します。ファイルが無ければ `{"setup_state_version": 1, "support_prompt": {...}}` だけの状態で作成し、既存フィールドがあれば保持したままマージします）。ここで保存しておかないと、利用者が規約同意まで進まずに終了した場合に記録が残らず、次回また同じ話題を出してしまいます。
 
 ## 3. 利用規約の同意確認
 
@@ -40,7 +47,7 @@ description: 環境セルフチェック、private repo 確認、利用規約の
   - **自社利用限定**（第 2 条）: 支援機関・代行業者がクライアント向けに使うことは禁止。利用者本人が自社のために使うかを確認します。
   - **収集なし**（第 3 条）: プロファイルも配信結果も外部送信されません。
   - 届く情報は「マッチ候補」であり、応募判断は公式の公募要領で行うこと。
-- 同意を確認できたら `input/setup-state.json` を書き込みます（同意がなければ書き込まず、該当条項を案内して終了します）:
+- 同意を確認できたら `input/setup-state.json` を書き込みます（同意がなければ同意記録を書かず、該当条項を案内して終了します。手順 2 で保存した `support_prompt` はその場合も消しません）。**書き込みは全文の上書きではなく既存フィールドを保持したマージ**で行います:
 
 ```json
 {
@@ -52,7 +59,13 @@ description: 環境セルフチェック、private repo 確認、利用規約の
 }
 ```
 
-`support_prompt` は任意フィールドです。手順 2 の応援の確認を実際に出したときだけ書き（`declined` は断られた・返答が曖昧なら `true`、同意されたら `false`）、出していなければキーごと省きます。このファイルは `.gitignore` 済みでローカル限定です。
+`support_prompt` は任意フィールドです（`declined` は断られた・返答が曖昧なら `true`、同意されたら `false`）。扱いは次の 3 つだけで、**一度書かれた `support_prompt` を消してはいけません**（消すと次回また勧誘が出ます）:
+
+- 今回の手順 2 で確認を出した → 今回の結果を書く
+- 既存の `input/setup-state.json` に `support_prompt` がある（＝以前に確認済みで、今回は手順 2 をスキップした） → **既存の値をそのまま引き継いで書き戻す**
+- 一度も確認を出しておらず既存値も無い（gh 未認証など） → キーごと省く
+
+このファイルは `.gitignore` 済みでローカル限定です。
 
 sha256 のゴールは「`TERMS.md` と `docs/data-policy.md` の**バイト列**の sha256 を hex 64 桁で得る」ことです（出力に含まれるファイル名部分は値に含めません）。第一手段は本キット必須ランタイムの node:
 
