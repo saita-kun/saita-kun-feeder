@@ -35,19 +35,20 @@
 
 `PATH=` 行を省略しないでください。チャネルアダプタ `channels/*/send` は `#!/usr/bin/env node` のような shebang でランナーから直接 exec されるため、`PATH` が通っていないとランナーが動いてもアダプタの起動で `env: node: No such file or directory` になり、配信だけが失敗します。
 
-**2. 出力を捨てず、実行日時つきでログファイルへ落とす。** 出力を `>/dev/null` に捨てると失敗の手がかりが消えます（旧記載の `... git commit -m "..." >/dev/null` はシェルの解析上 `git commit` にだけ結合し、node の出力は cron のローカルメールへ行くため、どちらも利用者の目には触れません）。ランナーの出力には日時が入らないので、各実行の先頭に UTC 日時を出しておくと「今朝ちゃんと起動したか」をログ末尾で判別できます（crontab のコマンド欄では `%` を `\%` とエスケープする必要があります）。
+**2. 出力を捨てず、実行日時つきでログファイルへ落とす。ランナーの終了コードは捨てない。** 出力を `>/dev/null` に捨てると失敗の手がかりが消えます（旧記載の `... git commit -m "..." >/dev/null` はシェルの解析上 `git commit` にだけ結合し、node の出力は cron のローカルメールへ行くため、どちらも利用者の目には触れません）。ランナーの出力には日時が入らないので、各実行の先頭に**ローカル時刻**を出しておくと「今朝ちゃんと起動したか」をログ末尾で判別できます（`date -u` は JST 早朝実行だと前日の日付を出してしまうので使いません。crontab のコマンド欄では `%` を `\%` とエスケープする必要があります）。台帳のコミットは行いつつ、cron ジョブ自体はランナーの終了コード（2 = 一部送信失敗）を返すようにします。
 
 ```bash
 # 毎朝 7 時に実行する例（crontab -e）
 # PATH の先頭と node の絶対パスは `command -v node` の実際の値に置き換える
 PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 
-0 7 * * * cd /path/to/your-feeder && { date -u +\%FT\%TZ; /opt/homebrew/bin/node runner/deliver.js; git add state/notified.json && git commit -m "chore: update delivery ledger"; } >> /path/to/your-feeder/cron-deliver.log 2>&1
+0 7 * * * cd /path/to/your-feeder && { date +\%FT\%T\%z; /opt/homebrew/bin/node runner/deliver.js; code=$?; git add state/notified.json && git commit -m "chore: update delivery ledger"; exit $code; } >> /path/to/your-feeder/cron-deliver.log 2>&1
 ```
 
 到達確認（翌朝これを見る）:
 
-- **主条件**: `cron-deliver.log` の末尾に**当日の日時行**（`date -u` が出した ISO 日時）があり、その直後に `feed: N 件（...）/ open: ... / マッチ: M 件` が続いて `command not found` 等で終わっていないこと。日時行が無ければ cron 自体が起動していません（ログは前日のまま残るので、末尾の行があること自体を成功と読まないでください）
+- **主条件**: `cron-deliver.log` の末尾に**当日（ローカル日付）の日時行**があり、その直後に `feed: N 件（...）/ open: ... / マッチ: M 件` が続いて `command not found` 等で終わっていないこと。日時行が無ければ cron 自体が起動していません（ログは前日のまま残るので、末尾に行があること自体を成功と読まないでください）
+- **送信結果まで見る**: `feed:` の行はアダプタを起動する前に出るので、この行だけでは配信成功を意味しません。同じ実行のブロックに `[<チャネル>] 送信失敗: ...` が無いことまで確認します（失敗した場合は台帳に `failed` が記録され、30 分後以降の実行で最大 3 回まで自動再送されます）
 - **配信対象があった日のみ**: `output/` に当日分のダイジェスト（`digest-<日付>-<チャネル>.md`）が増えていること。新着・更新がなくフィード警告も無い日は、`[<チャネル>] 新着・更新なし — 配信しません` と出してダイジェストを作らないのが正常な動作です。`output/` が増えないこと自体を失敗と判定しないでください（判定はログで行います）
 
 チャネルの環境変数は cron 環境に設定してください（cron は対話シェルの `.zshrc` / `.bashrc` を読みません。crontab 内で定義するか、`. /path/to/env-file` を先に実行する形にします）。ログファイルは repo 直下に置くなら `.gitignore` に追加してください。
