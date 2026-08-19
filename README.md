@@ -10,7 +10,9 @@
 
 ## はじめかた（AI に案内してもらう）
 
-Claude Code を開いて、次の 1 行を貼り付けてください。あとは AI が案内します。
+前提: **POSIX シェル環境（macOS / Linux / WSL2）と Node.js 22 以上**。Windows ネイティブ（PowerShell・コマンドプロンプト）は非対応です（配信ランナーが送信スクリプトを実行ビット付きで直接起動するため） — Windows の方は WSL2 を導入し、その中で使ってください。
+
+Claude Code を開いて、次の 1 行を貼り付けてください。あとは AI が案内します（Codex CLI・Cursor など他の AI コーディングエージェントでも動きます）。
 
 ```
 https://raw.githubusercontent.com/saita-kun/saita-kun-feeder/main/docs/ai-agent-guide.md を読んで、その手順に沿って私を案内してください。

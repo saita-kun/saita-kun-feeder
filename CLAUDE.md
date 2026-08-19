@@ -21,7 +21,9 @@
 `/setup` 以外のすべての slash command は、作業前に `input/setup-state.json` を確認してください。次のいずれかに当てはまる場合は作業に進まず、`/setup` の実行（または再実行）を案内します。
 
 - `input/setup-state.json` が存在しない、または JSON として読めない
-- `terms_sha256` / `data_policy_sha256` が現行の `TERMS.md` / `docs/data-policy.md` の sha256（`shasum -a 256`）と一致しない
+- `terms_sha256` / `data_policy_sha256` が現行の `TERMS.md` / `docs/data-policy.md` の**バイト列の sha256**（hex 64 桁。出力のファイル名部分は含めない）と一致しない
+  - 算出の第一手段は本キット必須ランタイムの node: `node -e 'console.log(require("crypto").createHash("sha256").update(require("fs").readFileSync("TERMS.md")).digest("hex"))'`
+  - `shasum -a 256`（macOS の既定）・`sha256sum`（多くの Linux）は環境別の例。どの実装でも同じ hex になる
 
 ## ガードレール
 
@@ -40,6 +42,7 @@
 > - フォロー: `gh auth refresh -h github.com -s user:follow`（ブラウザでの権限追加が必要です）→ `gh api -X PUT user/following/HideTsug`
 > 「スターだけ」でも大丈夫です。
 
+- **確認の前に `input/setup-state.json`（gitignore 済み・ローカル限定）の任意フィールド `support_prompt`（`{"asked_at": "<ISO8601>", "declined": true|false}`）を読み、`asked_at` に値があればこの話題を二度と出さない。** 確認を出したときは同ファイルに `support_prompt` を記録する（ファイルが未作成なら `/setup` 手順 3 の書き込み時にマージする）
 - 確認の前提: `gh auth status` が通っていること。未認証ならこの話題自体を出さない。`gh api user/starred/saita-kun/saita-kun-feeder` が成功する（= スター済み）場合はスターを省き、`gh api user/following/HideTsug` が成功する（= フォロー済み）場合はフォローを省く。両方済みなら確認自体をスキップする
 - **利用者が明示的に同意した項目のみ**実行する。フォローはスコープ昇格（ブラウザ認証の手間）を伴うことを必ず事前に伝え、スターだけの同意ならスターだけを実行する。断られた・返答が曖昧な場合は黙って通常フローに戻り、以後この話題を出さない
 - 自動実行・CI からの実行・利用者本人が管理しないアカウントでの実行は禁止

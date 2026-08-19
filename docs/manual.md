@@ -21,17 +21,29 @@
 - 実行後、台帳 `state/notified.json` の変更を bot が自動コミットします
 - チャネルの秘匿値は repo の Secrets に置き、`deliver.yml` の `env:` で渡します（`/setup-channel` が案内）
 - 手動発火: Actions タブから `Run workflow`（workflow_dispatch）
+- 基準日はランナー内で UTC 日付として計算されるため、JST 早朝配信ではダイジェストの見出しとファイル名（`digest-<日付>-<チャネル>`）が JST の**前日**日付になります（締切判定と台帳は実時刻ベースなので影響しません）
+- 配信時刻を変えたい場合は、希望のローカル時刻を UTC に換算して `deliver.yml` の `cron` を書き換えます（例: JST 12:00 に受け取りたい → `0 3 * * *`）
 
-## ローカル cron で動かす（GitHub Actions を使わない場合）
+## 手元の定期実行で動かす（GitHub Actions を使わない場合）
 
-ランナーは GitHub Actions への依存を持ちません。手元の cron でも同じように動きます:
+ランナーは GitHub Actions への依存を持ちません。ゴールは **「1 日 1 回ランナーが実行され、実行できたことを翌朝確認できる状態」** です。手段は cron・systemd timer・launchd のどれでも構いません（それぞれ設定方法は環境の公式ドキュメントに従ってください）。cron を使う場合の要点は次の 2 つです。
+
+**1. node は絶対パスで書く。** cron は最小の `PATH`（概ね `/usr/bin:/bin`）で起動するため、nvm・Homebrew・asdf・Volta で入れた node は `node` のままでは解決されず、毎朝 `node: command not found` で黙って失敗します。まず対話シェルで `command -v node` を実行し、出てきた絶対パス（例: `/opt/homebrew/bin/node`、`$HOME/.nvm/versions/node/v22.x.x/bin/node`）をそのまま crontab に埋めてください。
+
+**2. 出力を捨てずログファイルへ落とす。** 出力を `>/dev/null` に捨てると失敗の手がかりが消えます（旧記載の `... git commit -m "..." >/dev/null` はシェルの解析上 `git commit` にだけ結合し、node の出力は cron のローカルメールへ行くため、どちらも利用者の目には触れません）。
 
 ```bash
 # 毎朝 7 時に実行する例（crontab -e）
-0 7 * * * cd /path/to/your-feeder && node runner/deliver.js && git add state/notified.json && git commit -m "chore: update delivery ledger" >/dev/null
+# /usr/local/bin/node の部分は `command -v node` の実際の値に置き換える
+0 7 * * * cd /path/to/your-feeder && /usr/local/bin/node runner/deliver.js >> /path/to/your-feeder/cron-deliver.log 2>&1 && git add state/notified.json && git commit -m "chore: update delivery ledger" >> /path/to/your-feeder/cron-deliver.log 2>&1
 ```
 
-チャネルの環境変数は cron 環境に設定してください。
+到達確認（翌朝これを見る）:
+
+- `output/` に当日分のダイジェスト（`digest-<日付>-<チャネル>.md`）が増えていること
+- `cron-deliver.log` の末尾に当日の実行記録があり、`command not found` 等で終わっていないこと
+
+チャネルの環境変数は cron 環境に設定してください（cron は対話シェルの `.zshrc` / `.bashrc` を読みません。crontab 内で定義するか、`. /path/to/env-file` を先に実行する形にします）。ログファイルは repo 直下に置くなら `.gitignore` に追加してください。
 
 ## ランナーの引数
 

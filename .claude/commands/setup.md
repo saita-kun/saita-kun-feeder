@@ -8,13 +8,31 @@ description: 環境セルフチェック、private repo 確認、利用規約の
 
 ## 1. 環境セルフチェック
 
-- `bash --version`・`python3 --version`・`node --version`（Node 22 以上）を確認します。node は配信ランナー、python3 は `tools/check-*.sh` に必要です。見つからない場合は各公式サイトのインストーラーを案内し、導入後に `/setup` を再実行してもらいます。
-- `gh repo view --json isPrivate --jq .isPrivate` を実行し、**この repo が private であること**を確認します。`true` 以外（または gh 未認証）の場合は先に対処を案内します。会社プロファイルを含むため、public のままでは先に進みません（TERMS 第 5 条）。
+**前提 OS: POSIX シェル環境（macOS / Linux / WSL2）。Windows ネイティブは非対応です。** 配信ランナーが送信スクリプト（`channels/*/send`）を実行ビット付きのまま直接 exec する構造で、契約検査（`tools/check-channels.sh`）も実行ビットを要求するため、PowerShell / コマンドプロンプトでは原理的に動きません。
+
+- ランタイムを確認します。**必須**と**後続で必要**を分けて案内してください:
+
+| 確認コマンド | 位置づけ | 用途 |
+|---|---|---|
+| `node --version`（Node 22 以上） | 必須 | 配信ランナー `runner/deliver.js`・`tools/check-profile.sh`（node 実装） |
+| `bash --version` | 必須 | `tools/*.sh` 全般 |
+| `python3 --version` | 後続で必要 | `tools/check-channels.sh`（`/setup-channel` の契約検査）・`tools/check-ledger.sh`（`/status` の台帳検査）・`tools/check-feed-contract.sh`・`tools/validate.sh`。無くても本コマンドのプロファイル作成と `node runner/deliver.js --dry-run` は完走します |
+
+- node が見つからない場合は <https://nodejs.org> の公式インストーラーを案内し、導入後に `/setup` を再実行してもらいます。
+- **bash が無い（＝ Windows ネイティブで作業している）場合**は、インストーラーを探させず次を案内します: ① Microsoft 公式手順で WSL2 を導入する（`wsl --install`）→ ② **WSL2 のシェルの中で**この repo を clone し直す（Windows 側のパスに置いたままにしない）→ ③ WSL2 の中で `/setup` を再実行する。
+- 受入基準: `bash tools/validate.sh` が green（`validate: OK`）になること。python3 未導入の間は channels / ledger / feed-contract ステップが red のままになるので、`/setup-channel` に進む前に導入してもらいます。
+- **この repo が private であること**を確認します（会社プロファイルを含むため。TERMS 第 5 条）。ゴールは「origin repo が private である証跡を 1 つ得ること」です。
+  - 第一手段: `gh repo view --json isPrivate --jq .isPrivate` が `true` を返すこと。
+  - `false` が返った場合（＝実際に public）: repo の Settings > General > Danger Zone > Change repository visibility で Private へ変更してもらい、確認が取れるまで先に進みません。
+  - gh が未導入・未認証でコマンド自体が失敗した場合（`false` とは別の分岐として扱う）: 代替として次のいずれかで確認します。① repo の Settings 画面で Visibility が Private になっていることを利用者に目視確認してもらう。② `git remote get-url origin` から `<owner>/<repo>` を取り、未認証での `curl -s -o /dev/null -w '%{http_code}\n' https://api.github.com/repos/<owner>/<repo>` が `404`（public なら `200`）を返すことを補助証跡にする。
+  - TERMS 第 5 条の実行時強制は `.github/workflows/deliver.yml` の private guard が毎回の配信で行うため、`/setup` 側は停止ゲートではなく確認ゲートで足ります。
 - このディレクトリがテンプレートからの複製（自分の repo）であることを確認します。`saita-kun/saita-kun-feeder` を直接 clone している場合は、テンプレートから private repo を作る手順（`docs/onboarding/03-このキットを自分のものにする.md`）を案内します。
 
 ## 2. 応援の確認（任意・同意必須）
 
 `CLAUDE.md` の「応援の確認」節に従って、スターとフォローで応援するかを一度だけ確認します。gh 未認証ならスキップします。同意の有無にかかわらずセットアップは通常どおり進めます。
+
+確認の前に `input/setup-state.json` の `support_prompt.asked_at` を読み、**値があればこの節を丸ごとスキップします**（一度断られた話題を再提示しないため）。確認を出した場合は結果を `support_prompt` に記録します（ファイルがまだ無ければ手順 3 の書き込み時にマージ）。
 
 ## 3. 利用規約の同意確認
 
@@ -29,11 +47,20 @@ description: 環境セルフチェック、private repo 確認、利用規約の
   "setup_state_version": 1,
   "setup_completed_at": "<ISO8601 日時>",
   "terms_sha256": "<TERMS.md の sha256>",
-  "data_policy_sha256": "<docs/data-policy.md の sha256>"
+  "data_policy_sha256": "<docs/data-policy.md の sha256>",
+  "support_prompt": { "asked_at": "<ISO8601 日時>", "declined": true }
 }
 ```
 
-sha256 は `shasum -a 256 TERMS.md docs/data-policy.md` で取得します。
+`support_prompt` は任意フィールドです。手順 2 の応援の確認を実際に出したときだけ書き（`declined` は断られた・返答が曖昧なら `true`、同意されたら `false`）、出していなければキーごと省きます。このファイルは `.gitignore` 済みでローカル限定です。
+
+sha256 のゴールは「`TERMS.md` と `docs/data-policy.md` の**バイト列**の sha256 を hex 64 桁で得る」ことです（出力に含まれるファイル名部分は値に含めません）。第一手段は本キット必須ランタイムの node:
+
+```bash
+node -e 'const c=require("crypto"),f=require("fs");for(const p of ["TERMS.md","docs/data-policy.md"])console.log(p, c.createHash("sha256").update(f.readFileSync(p)).digest("hex"))'
+```
+
+環境に応じて `shasum -a 256 TERMS.md docs/data-policy.md`（macOS の既定）や `sha256sum TERMS.md docs/data-policy.md`（多くの Linux ディストリビューション）を使っても構いません。どの実装でも同じ hex になります。受入基準は「64 桁 hex が 2 つ得られ、`node runner/deliver.js --dry-run` が同意記録の不一致で落ちないこと」です。
 
 ## 4. 会社プロファイルのインタビュー
 
@@ -67,7 +94,9 @@ sha256 は `shasum -a 256 TERMS.md docs/data-policy.md` で取得します。
 # セットアップ確認
 
 ## 環境
-- [ ] bash / python3 / node 22+
+- [ ] OS が POSIX シェル環境（macOS / Linux / WSL2）
+- [ ] node 22+ / bash（必須）
+- [ ] python3（後続で必要。`/setup-channel` に進む前までに）
 - [ ] private repo である
 - [ ] テンプレートからの複製である
 
