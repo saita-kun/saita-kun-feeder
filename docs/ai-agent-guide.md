@@ -11,7 +11,8 @@
 ## S0. 前提の確認
 
 1. GitHub アカウントを持っているか（なければ `docs/onboarding/01-githubアカウント作成.md` 相当: github.com で無料登録）
-2. Claude Code が使えるか（なければ `docs/onboarding/02-claude-codeセットアップ.md` 相当: claude.com/claude-code の公式手順）
+2. repo を開いて作業できる **AI コーディングエージェント**が手元にあるか。特定の製品は要求しません（Claude Code・Codex CLI・Cursor・Gemini CLI など、ローカルのファイルを読み書きしてコマンドを実行できるものであれば動きます）。まだ何も無い場合の代表例として Claude Code を案内できます（`docs/onboarding/02-claude-codeセットアップ.md` 相当: claude.com/claude-code の公式手順）。
+3. OS の前提: POSIX シェル環境（macOS / Linux / WSL2）。Windows ネイティブは非対応なので、Windows の利用者には WSL2 を導入し、その中で clone して作業してもらいます。
 
 ## S1. テンプレートから private repo を作る
 
@@ -20,9 +21,14 @@
 3. **Visibility は必ず Private** を選ぶ（会社プロファイルを置くため。public では利用不可）
 4. 自分のアカウントに repo を作成し、手元に clone する
 
-## S2. Claude Code で開いて /setup
+## S2. AI エージェントで開いて /setup
 
-作成した repo を Claude Code で開き、`/setup` を実行するよう案内します。以降は repo 内の `CLAUDE.md` と `.claude/commands/` が案内を引き継ぎます（あなたの役目はここまでです）。
+作成した repo を、利用者が使っている AI コーディングエージェントで開いてもらい、セットアップ手順を開始するよう案内します。以降は repo 内の `CLAUDE.md` / `AGENTS.md` と `.claude/commands/` が案内を引き継ぎます（あなたの役目はここまでです）。
+
+開始のしかたは環境によって 2 通りあります:
+
+- **slash command が使える環境**（代表例: Claude Code）: `/setup` と入力してもらう。
+- **slash command 機構が無い環境**（Codex CLI・Cursor など）: `AGENTS.md` に書かれているとおり、`.claude/commands/*.md` を手順書として読ませます。利用者には「`.claude/commands/setup.md` を読んで、手順どおりに進めてください」と依頼してもらえば同じ結果になります（以降 `/setup-channel`・`/deliver`・`/status` も同じ読み替えです）。
 
 `/setup` が行うこと（利用者への予告用）:
 - 環境チェック（bash / python3 / node）と private 確認

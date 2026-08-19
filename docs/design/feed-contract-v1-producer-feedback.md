@@ -1,6 +1,8 @@
 # feed-contract-v1 producer 実装フィードバック（2026-07-25）
 
-producer（saita-kun-web [PR #168](https://github.com/HideTsug/saita-kun-web/pull/168)、Phase A2）の実装が完了し、`tools/check-feed-contract.sh` を vendor して CI ゲート化・準拠 pass 済み。実装レビュー（GPT-5.6 Sol・3巡）で確定した**契約側への申し送り**を記録する。次に本 repo を触るセッションはこれを処理すること。
+> **対象読者: canonical repo（`saita-kun/saita-kun-feeder`）のメンテナ AI。採用者 repo では作業対象外です。** テンプレートから作った自分の repo でこの文書を読んだ場合、ここに書かれた契約文書の改訂・checker の変更は行わないでください（`CLAUDE.md`「設計不変条件」のとおり、提案は canonical repo の Issue へ）。
+
+producer（saita-kun-web [PR #168](https://github.com/HideTsug/saita-kun-web/pull/168)、Phase A2）の実装が完了し、`tools/check-feed-contract.sh` を vendor して CI ゲート化・準拠 pass 済み。実装レビュー（GPT-5.6 Sol・3巡）で確定した**契約側への申し送り**を記録する。以下は canonical repo 側で処理すべき未処理の申し送りである（参照先の PR は producer repo のもので、採用者からは参照できない）。
 
 ## 実装報告
 

@@ -28,7 +28,7 @@ description: 通知の届け先（Slack・メール・LINE 等）をヒアリン
 `channels/my-<name>/`（例: `my-slack`）に以下を作成します:
 
 - `channel.json` — `schemas/channel-manifest.schema.json` 準拠。秘匿値は書かず、必要な環境変数**名**を `requires_env` に列挙。
-- `send` — 実行可能スクリプト（`chmod +x`）。原則 bash + curl 等の OS 標準で書き、パッケージ導入を要求しない。契約の要点:
+- `send` — 実行可能スクリプト（`chmod +x`）。依存は最小に。追加のパッケージインストールを要求せず、`/setup` の環境セルフチェックで存在を確認済みのランタイムで書く（POSIX 環境なら bash + curl、本キット必須の node でもよい）。契約の要点:
   - argv[1] = digest markdown パス、stdin = digest JSON
   - exit 0 = 成功 / 非 0 = 失敗
   - `SAITA_FEEDER_DRY_RUN=1` なら副作用ゼロで意図を stdout に出して exit 0
@@ -38,13 +38,25 @@ description: 通知の届け先（Slack・メール・LINE 等）をヒアリン
 ## 3. 秘匿値の登録案内
 
 - ローカル実行用: シェルの環境変数設定を案内（値はチャットに貼らせない。`read -s` 等を案内）。
-- 自動配信用: `gh secret set <NAME>` で GitHub Actions Secrets に登録し、`.github/workflows/deliver.yml` の `env:` にその変数の受け渡しを追記する（この追記はアダプタとセットで行う）。
+- 自動配信用のゴール: **有効チャネルの `requires_env` が GitHub Actions の実行時に解決される状態**。次の 2 つを両方行います。
+  1. Secrets に値を登録する。手段は 2 経路のどちらでもよい:
+     - `gh` があれば `gh secret set <NAME>`（値の入力はプロンプトに直接。チャットに貼らせない）
+     - `gh` が無ければブラウザで repo の **Settings > Secrets and variables > Actions > New repository secret** に `<NAME>` と値を登録してもらう
+  2. `.github/workflows/deliver.yml` の Deliver ステップに `env:` を追記し、その Secret を変数として渡す（コメントアウトされた例が同ファイルにあります）。この追記はアダプタとセットで行います。
 
-## 4. テスト（3 段階）
+## 4. テスト（4 段階）
 
 1. **契約検査**: `tools/check-channels.sh` green。
-2. **DRY_RUN 自己テスト**: `SAITA_FEEDER_DRY_RUN=1 channels/my-<name>/send tests/fixtures/golden-digest/digest-2026-07-10-dryrun.md < /dev/null` が exit 0 で、意図の出力が出ること。
+2. **DRY_RUN 自己テスト**: 本番と同じ入力（argv[1] = digest markdown、stdin = digest JSON）で起動します。
+
+   ```bash
+   SAITA_FEEDER_DRY_RUN=1 channels/my-<name>/send tests/fixtures/golden-digest/digest-2026-07-10-dryrun.md \
+     < tests/fixtures/golden-digest/digest-2026-07-10-dryrun.json
+   ```
+
+   受入基準: exit 0 であること／stdout に「どこへ何件送るつもりか」（送信先と件数）が出ること／ネットワーク副作用が無いこと（契約 §3 の MUST）。stdin を `/dev/null` にしないでください — 契約 §2 は stdin = ダイジェスト JSON と定めており、`tools/check-channels.sh` も同じ fixture JSON を stdin に流して起動するため、空 stdin で試すと契約準拠のアダプタだけが落ちて誤った「修正」を招きます。
 3. **実送信テスト**: 利用者に「1 回だけテスト送信して良いか」を確認してから、golden digest fixture を実送信し、届いたことを利用者に確認してもらう。
+4. **自動配信の疎通確認**: Actions タブから deliver ワークフローを `Run workflow`（workflow_dispatch）で 1 回手動実行し、緑になることを確認します。受入基準は「`gh secret list` か Settings 画面で Secret 名が見えること」＋「この手動実行が緑であること」。`tools/validate.sh` は `deliver.yml` を一切検査しないため、**手順 3 の `env:` 追記が正しいことを機械的に確かめられるのはこの手動実行だけ**です（追記が壊れていても日次配信は無言で止まります）。
 
 ## 5. 有効化
 
