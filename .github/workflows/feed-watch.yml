@@ -1,0 +1,117 @@
+name: feed-watch
+
+# 上流フィード（contract v1）の契約破れを canonical repo で日次検知する。
+# validate.yml の check-feed-contract は同梱 fixture の自己検査なので、実配信で使う
+# フィード本体は誰も見ていない。ここが唯一の「実フィードに対する契約ゲート」。
+# 失敗＝ workflow が赤くなることを通知経路とする（新しい secrets・外部送信は足さない）。
+
+on:
+  schedule:
+    - cron: '0 23 * * *'   # 23:00 UTC = JST 08:00 daily（producer 更新の後）
+  workflow_dispatch:
+    inputs:
+      feed_base_url:
+        description: '検査するフィードの base URL（既定: profile/delivery-profile.sample.json の feed_base_url）'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: feed-watch
+  cancel-in-progress: false
+
+jobs:
+  feed-watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # canonical repo 専用。fork（利用者の private repo）は上流を定期 poll しない。
+    if: github.repository == 'saita-kun/saita-kun-feeder'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Snapshot the live feed
+        id: snapshot
+        env:
+          FEED_BASE_URL: ${{ inputs.feed_base_url }}
+        run: |
+          set -euo pipefail
+          SNAPSHOT_DIR="$RUNNER_TEMP/feed-snapshot"
+          rm -rf "$SNAPSHOT_DIR"
+          mkdir -p "$SNAPSHOT_DIR"
+          python3 - "$SNAPSHOT_DIR" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+          import urllib.request
+
+          SUPPORTED_MAJOR = "1"
+          TIMEOUT_SECONDS = 30
+
+          snapshot_dir = pathlib.Path(sys.argv[1])
+          base_url = (os.environ.get("FEED_BASE_URL") or "").strip()
+          if not base_url:
+              profile = json.loads(
+                  pathlib.Path("profile/delivery-profile.sample.json").read_text(encoding="utf-8")
+              )
+              base_url = (profile.get("feed_base_url") or "").strip()
+          if not base_url.startswith(("http://", "https://")):
+              print(f"::error::feed_base_url が http(s) URL ではありません: {base_url!r}")
+              raise SystemExit(1)
+          base_url = base_url.rstrip("/")
+          print(f"feed base url: {base_url}")
+
+
+          def fetch(name):
+              url = f"{base_url}/{name}"
+              with urllib.request.urlopen(url, timeout=TIMEOUT_SECONDS) as res:
+                  if res.status != 200:
+                      print(f"::error::HTTP {res.status} for {url}")
+                      raise SystemExit(1)
+                  return res.read()
+
+
+          meta_bytes = fetch("meta.json")
+          (snapshot_dir / "meta.json").write_bytes(meta_bytes)
+          try:
+              meta = json.loads(meta_bytes)
+          except json.JSONDecodeError as exc:
+              print(f"::error::meta.json が JSON として読めません: {exc}")
+              raise SystemExit(1)
+          if not isinstance(meta, dict):
+              print("::error::meta.json の top level が object ではありません")
+              raise SystemExit(1)
+
+          failures = []
+
+          schema_version = meta.get("schema_version")
+          if not isinstance(schema_version, str) or schema_version.split(".")[0] != SUPPORTED_MAJOR:
+              failures.append(
+                  f"schema_version のメジャーが repo の想定 {SUPPORTED_MAJOR}.x と違います: {schema_version!r}"
+              )
+          if meta.get("deprecated") is True:
+              failures.append(
+                  "meta.deprecated=true。上流が v1 を非推奨にしました（contract v1: 破壊的変更は /v2/ を並存させる）"
+              )
+
+          files = meta.get("files")
+          if not isinstance(files, dict) or not files:
+              failures.append("meta.files が object ではないか空です")
+              files = {}
+          for name in sorted(files):
+              if "/" in name or name in (".", "..") or name.startswith("."):
+                  failures.append(f"meta.files のキーがファイル名として不正です: {name!r}")
+                  continue
+              (snapshot_dir / name).write_bytes(fetch(name))
+              print(f"fetched: {name}")
+
+          for message in failures:
+              print(f"::error::{message}")
+          raise SystemExit(1 if failures else 0)
+          PY
+          echo "dir=$SNAPSHOT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Feed contract gate
+        run: tools/check-feed-contract.sh "${{ steps.snapshot.outputs.dir }}"
