@@ -1,8 +1,10 @@
 # サイタくんフィーダー（saita-kun-feeder）
 
+[English](README.en.md)
+
 自社に合う補助金の新着情報を、**あなたの会社のプロファイルでマッチングして、あなたの好きな場所（Slack・メール・LINE など）に自動で届ける** OSS ハーネスです。
 
-サイタくんが無料公開している[補助金公開データフィード](docs/design/feed-contract-v1.md)（全国の補助金・約 1.2 万件、日次更新）を取得し、あなたの Claude Code がセットアップから配信チャネルの実装までを伴走します。サーバー不要・データベース不要・API キー不要。GitHub Actions（または手元の cron）だけで動きます。
+サイタくんが無料公開している[補助金公開データフィード](docs/design/feed-contract-v1.md)（全国の補助金・約 1.2 万件、日次更新）を取得し、お使いの AI コーディングエージェント（Claude Code・Codex CLI・Cursor など）がセットアップから配信チャネルの実装までを伴走します。サーバー不要・データベース不要・API キー不要。GitHub Actions（または手元の cron）だけで動きます。
 
 姉妹プロジェクト: 補助金の**申請**を支援する [saita-kun-planner](https://github.com/saita-kun/saita-kun-planner)（事業計画書の叩き台づくりハーネス）。feeder が「見つける・届く」、planner が「申請する」を受け持ちます。
 
@@ -10,13 +12,21 @@
 
 ## はじめかた（AI に案内してもらう）
 
-前提: **POSIX シェル環境（macOS / Linux / WSL2）と Node.js 22 以上**。Windows ネイティブ（PowerShell・コマンドプロンプト）は非対応です（配信ランナーが送信スクリプトを実行ビット付きで直接起動するため） — Windows の方は WSL2 を導入し、その中で使ってください。
+前提: **POSIX シェル環境（macOS / Linux / WSL2）・bash・git・Node.js 22 以上**（`/setup-channel` 以降は python3 も必要です）。Windows ネイティブ（PowerShell・コマンドプロンプト）は非対応です（配信ランナーが送信スクリプトを実行ビット付きで直接起動するため） — Windows の方は WSL2 を導入し、その中で使ってください。
 
-Claude Code を開いて、次の 1 行を貼り付けてください。あとは AI が案内します（Codex CLI・Cursor など他の AI コーディングエージェントでも動きます）。
+お使いの AI アシスタント（Claude Code / Claude / ChatGPT など）に、次の文をそのまま貼り付けてください。あとは AI が案内します（Codex CLI・Cursor など他の AI コーディングエージェントでも動きます）。
 
 ```
-https://raw.githubusercontent.com/saita-kun/saita-kun-feeder/main/docs/ai-agent-guide.md を読んで、その手順に沿って私を案内してください。
+自社に合う補助金の新着情報を、自分の環境で受け取れるようにしたい。
+https://raw.githubusercontent.com/saita-kun/saita-kun-feeder/main/docs/ai-agent-guide.md
+を読んで、その手順どおりに私を案内してください。
 ```
+
+AI が、前提の確認、作業用 private repo の準備、最初のコマンドの実行までを案内します（案内台本は [docs/ai-agent-guide.md](docs/ai-agent-guide.md)）。
+
+お使いの AI が上記 URL を閲覧できない場合は、あなた自身がブラウザで URL を開き、表示された本文をチャットに貼り付けてください。それを台本として案内が始まります。
+
+版を固定したい場合は、`https://raw.githubusercontent.com/saita-kun/saita-kun-feeder/v1.0.0/docs/ai-agent-guide.md` のように、タグまたはコミット ID を指定した URL も使えます（既定は最新版の main）。
 
 手動で始める場合は [docs/onboarding/00-はじめに.md](docs/onboarding/00-はじめに.md) から。
 
