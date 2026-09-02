@@ -8,6 +8,8 @@
  *
  * --today fixes the reference date AND the ledger timestamps (deterministic
  * runs for tests). Without it, wall-clock time is used.
+ * Reference dates default to the fixed Asia/Tokyo calendar day; wall-clock
+ * timestamps still use the actual instant.
  * --dry-run: renders digests and invokes adapters with SAITA_FEEDER_DRY_RUN=1;
  * never mutates the ledger.
  *
@@ -24,6 +26,7 @@ const { loadFeed, freshnessWarnings } = require('../lib/feed-client');
 const ledgerLib = require('../lib/ledger');
 const { remainingBudget, selectWithinBudget } = require('../lib/select');
 const { renderDigest } = require('../lib/digest');
+const { basisDate, basisDateCarrier } = require('../lib/basis-date');
 
 const ROOT = path.resolve(__dirname, '..');
 const CHANNEL_TIMEOUT_MS = 60 * 1000;
@@ -109,10 +112,10 @@ async function main() {
   const profile = loadProfile(profilePath);
   enforceTermsGate(profile);
 
-  const today = args.today || new Date().toISOString().slice(0, 10);
+  const today = args.today || basisDate(Date.now());
   const nowMs = args.today ? Date.parse(`${args.today}T00:00:00Z`) : Date.now();
   const nowIso = new Date(nowMs).toISOString();
-  const todayDate = new Date(nowMs);
+  const todayDate = basisDateCarrier(today);
 
   const feedBase = args.feed || profile.feed_base_url;
   if (!feedBase) throw new Error('フィードの場所が未設定です（--feed または profile.feed_base_url）');
