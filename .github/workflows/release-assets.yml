@@ -16,7 +16,7 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          name="${GITHUB_REPOSITORY##*/}-${TAG}"
+          name="${GITHUB_REPOSITORY##*/}-${TAG//\//-}"
           git archive --format=zip --prefix="${name}/" -o "${name}.zip" "refs/tags/${TAG}"
           sha256sum "${name}.zip" > "${name}.zip.sha256"
       - name: Upload assets to the release
