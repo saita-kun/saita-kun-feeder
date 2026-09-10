@@ -6,8 +6,8 @@
   "excludeFolders": ["node_modules", ".git", ".ralph"],
   "excludeFiles": [],
   "rules": [
-    "Configure your company profile and delivery channel through /setup.",
+    "Create your company profile with /setup and configure the delivery channel with /setup-channel.",
     "The kit consumes the saita-kun open subsidy data feed (about 12,000 programs, updated daily, CDLA-Permissive-2.0).",
-    "Runs on GitHub Actions or your own machine; keep tokens in repository secrets or .env, never in committed files."
+    "Runs on GitHub Actions or your own machine; keep tokens in repository secrets or local environment variables, never in files."
   ]
 }
