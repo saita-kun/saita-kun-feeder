@@ -1,0 +1,13 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "saita-kun-feeder",
+  "description": "Free open-source GitHub template that delivers newly published Japanese subsidy programs, matched against your company profile, to Slack, email, LINE or other channels via GitHub Actions or self-hosting.",
+  "folders": [],
+  "excludeFolders": ["node_modules", ".git", ".ralph"],
+  "excludeFiles": [],
+  "rules": [
+    "Configure your company profile and delivery channel through /setup.",
+    "The kit consumes the saita-kun open subsidy data feed (about 12,000 programs, updated daily, CDLA-Permissive-2.0).",
+    "Runs on GitHub Actions or your own machine; keep tokens in repository secrets or .env, never in committed files."
+  ]
+}
