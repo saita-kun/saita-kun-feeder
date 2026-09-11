@@ -23,7 +23,8 @@ send <digest.md のパス>
 ```
 
 - **argv[1]**: 描画済みダイジェスト（markdown）のファイルパス。
-- **stdin**: ダイジェストの機械可読 JSON（`lib/digest.js` の `json` 出力。`digest_version: 1`）。
+- **stdin**: ダイジェストの機械可読 JSON（`lib/digest.js` の `json` 出力。`digest_version: 1`）。UTF-8、2 スペースインデントで整形し、末尾に LF を 1 個付ける（`JSON.stringify(digestJson, null, 2) + '\n'`）。保存 JSON・checker の golden fixture と同じ形式を、通常実行・dry-run の両方で渡す。
+  アダプタは stdin を EOF まで読み、複数行にわたる JSON 全体を解析すること。
 - **exit 0 = 配信成功／非 0 = 失敗**。失敗はランナーが台帳に `failed` として記録し、リトライ規約（30 分バックオフ・最大 3 回）を適用する。
 - タイムアウト: 60 秒。超過は失敗扱い。
 - 冪等性（同じ補助金を二度送らない）は**ランナー側の台帳が担保**する。アダプタは渡されたものを送るだけでよい。

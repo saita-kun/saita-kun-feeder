@@ -59,6 +59,7 @@
     "schemas/feed-subsidy.schema.json",
     "schemas/ledger.schema.json",
     "tests/basis-date.test.js",
+    "tests/channel-stdin.test.js",
     "tests/check-profile.test.js",
     "tests/e2e-deliver.test.js",
     "tests/feed-client.test.js",

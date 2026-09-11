@@ -91,7 +91,7 @@ function runChannelAdapter(channelName, digestMdPath, digestJson, dryRun) {
     return { ok: false, error: `チャネル ${channelName} が不完全です（channel.json / send が必要）` };
   }
   const res = spawnSync(sendPath, [digestMdPath], {
-    input: JSON.stringify(digestJson),
+    input: `${JSON.stringify(digestJson, null, 2)}\n`,
     env: { ...process.env, ...(dryRun ? { SAITA_FEEDER_DRY_RUN: '1' } : {}) },
     timeout: CHANNEL_TIMEOUT_MS,
     encoding: 'utf8',
