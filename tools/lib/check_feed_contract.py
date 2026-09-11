@@ -97,6 +97,10 @@ def check_row(row, idx, errors):
         errors.append(f"{where}: must be an object")
         return None, None
 
+    for field in ("source", "is_open", "url_dead_since"):
+        if field in row:
+            errors.append(f"{where}: forbidden field: {field}")
+
     rid = row.get("id")
     if not isinstance(rid, str) or not rid:
         errors.append(f"{where}: id must be a non-empty string, got {rid!r}")

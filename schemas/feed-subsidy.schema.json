@@ -32,6 +32,9 @@
         "purpose_market", "purpose_startup", "purpose_succession"
       ],
       "properties": {
+        "source": false,
+        "is_open": false,
+        "url_dead_since": false,
         "id": { "type": "string", "minLength": 1 },
         "detailed_url": { "type": "string", "pattern": "^https?://" },
         "title": { "type": "string", "minLength": 1 },
