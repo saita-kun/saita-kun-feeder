@@ -29,7 +29,8 @@ for p in missing:
 sys.exit(1 if missing else 0)
 EOF
 
-# 2. Contract / profile / channels / ledger gates
+# 2. Local documentation / contract / profile / channels / ledger gates
+step "check-doc-links" bash tools/check-doc-links.sh
 step "check-feed-contract" tools/check-feed-contract.sh
 step "check-profile" tools/check-profile.sh
 step "check-channels" tools/check-channels.sh
