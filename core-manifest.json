@@ -82,6 +82,7 @@
     "tests/fixtures/match-predicate-golden/09-purposes-categories.json",
     "tests/helpers/fixture-repo.js",
     "tests/match-predicate-golden.test.js",
+    "tests/update-core.test.js",
     "tools/check-channels.sh",
     "tools/check-feed-contract.sh",
     "tools/check-ledger.sh",
@@ -91,6 +92,7 @@
     "tools/lib/check_feed_contract.py",
     "tools/lib/check_ledger.py",
     "tools/lib/check_profile.js",
+    "tools/lib/update_core.py",
     "tools/update-core.sh",
     "tools/validate.sh"
   ]
