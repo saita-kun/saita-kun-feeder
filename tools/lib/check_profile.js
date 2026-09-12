@@ -100,6 +100,10 @@ function main() {
       errors.push(`${field} must be a number or null`);
     }
   }
+  if (Number.isFinite(profile.amount_min) && Number.isFinite(profile.amount_max) &&
+      profile.amount_min > profile.amount_max) {
+    errors.push('amount_min must be <= amount_max');
+  }
   for (const field of ['employee_count', 'deadline_buffer_days']) {
     const v = profile[field];
     if (v !== null && v !== undefined && (!Number.isInteger(v) || v < 0)) {
