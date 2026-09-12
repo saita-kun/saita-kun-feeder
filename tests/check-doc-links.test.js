@@ -205,12 +205,14 @@ test('links_preserves_links_between_escaped_backticks', (t) => {
 test('links_ignores_escaped_opening_brackets', (t) => {
   const f = fixture(t, { 'README.md': '' });
   for (const backslashes of [1, 3]) {
-    write(f.repo, 'README.md', `${'\\'.repeat(backslashes)}[guide](missing.md)`);
-    const result = f.check();
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /links=0\b/);
-    assert.match(result.stdout, /relative_missing=0\b/);
-    assert.deepEqual(result.calls, []);
+    for (const suffix of ['(missing.md)', '[]', '']) {
+      write(f.repo, 'README.md', `${'\\'.repeat(backslashes)}[guide]${suffix}\n\n[guide]: missing.md`);
+      const result = f.check();
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /links=0\b/);
+      assert.match(result.stdout, /relative_missing=0\b/);
+      assert.deepEqual(result.calls, []);
+    }
   }
 });
 
@@ -218,17 +220,42 @@ test('links_checks_opening_brackets_after_paired_backslashes', (t) => {
   const f = fixture(t, { 'README.md': '', 'present.md': '' });
   for (const backslashes of [2, 4]) {
     for (const target of ['missing.md', 'present.md']) {
-      write(f.repo, 'README.md', `${'\\'.repeat(backslashes)}[guide](${target})`);
-      const result = f.check();
-      const missing = target === 'missing.md';
-      assert.equal(result.status, missing ? 1 : 0, result.stderr);
-      assert.match(result.stdout, /links=1\b/);
-      assert.match(result.stdout, new RegExp(`relative_${missing ? 'missing' : 'ok'}=1\\b`));
-      if (missing) assert.match(result.stderr, /README\.md:1: missing\.md/);
-      assert.deepEqual(result.calls, []);
+      for (const suffix of [`(${target})`, '[]', '', '[guide]']) {
+        write(f.repo, 'README.md', `${'\\'.repeat(backslashes)}[guide]${suffix}\n\n[guide]: ${target}`);
+        const result = f.check();
+        const missing = target === 'missing.md';
+        assert.equal(result.status, missing ? 1 : 0, result.stderr);
+        assert.match(result.stdout, /links=1\b/);
+        assert.match(result.stdout, new RegExp(`relative_${missing ? 'missing' : 'ok'}=1\\b`));
+        if (missing) assert.match(result.stderr, /README\.md:1: missing\.md/);
+        assert.deepEqual(result.calls, []);
+      }
     }
   }
 });
+
+for (const [name, separator] of [['space', ' '], ['tab', '\t']]) {
+  test(`links_checks_${name}_separated_reference_links`, (t) => {
+    const f = fixture(t, { 'README.md': '', 'present.md': '' });
+    for (const targets of [
+      ['missing.md', 'present.md'], ['present.md', 'missing.md'],
+      ['missing.md', 'missing.md'], ['present.md', 'present.md'],
+    ]) {
+      write(f.repo, 'README.md', [
+        `[one]${separator}[two]`, '',
+        `[one]: ${targets[0]}`, `[two]: ${targets[1]}`,
+      ].join('\n'));
+      const result = f.check();
+      const missing = targets.filter((target) => target === 'missing.md').length;
+      assert.equal(result.status, missing ? 1 : 0, result.stderr);
+      assert.match(result.stdout, /links=2\b/);
+      assert.match(result.stdout, new RegExp(`relative_missing=${missing}\\b`));
+      assert.match(result.stdout, new RegExp(`relative_ok=${2 - missing}\\b`));
+      if (missing) assert.match(result.stderr, /README\.md:1: missing\.md/);
+      assert.deepEqual(result.calls, []);
+    }
+  });
+}
 
 test('links_preserves_distinct_reference_labels_with_code_spans', (t) => {
   const f = fixture(t, { 'README.md': '', 'present.md': '' });

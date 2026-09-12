@@ -28,8 +28,8 @@ TITLE = r'''"(?:\\.|[^"\\\n]|\n(?![ \t]*\n))*"|'(?:\\.|[^'\\\n]|\n(?![ \t]*\n))*
 INLINE = re.compile(r'\]\(\s*(?:' + DESTINATION + r')(?:\s+(?:' + TITLE + r'))?\s*\)')
 DEFINITION = re.compile(r'^ {0,3}\[([^\]\n]+)\]:[ \t]*(?:\n[ \t]*)?(?:' + DESTINATION +
                         r')(?:(?:[ \t]+(?:\n[ \t]*)?|\n[ \t]*)(?:' + TITLE + r'))?[ \t]*$', re.M)
-REFERENCE_SYNTAX = r'\[(' + LABEL_TEXT + r'+)\](?:[ \t]*\[([^\]\n]*)\])?'
-REFERENCE = re.compile(r'(?<!\\)' + REFERENCE_SYNTAX)
+REFERENCE_SYNTAX = r'\[(' + LABEL_TEXT + r'+)\](?:\[([^\]\n]*)\])?'
+REFERENCE = re.compile(r'(?<!\\)(?:\\\\)*' + REFERENCE_SYNTAX)
 IMAGE_REFERENCE = re.compile(r'(?<!\\)!' + REFERENCE_SYNTAX)
 AUTOLINK = re.compile(r'<(https?://[^\s<>]+)>')
 HTTP_URL = re.compile(r'''https?://[^\s<>`"'\[\]|）】」』、。]+''')
