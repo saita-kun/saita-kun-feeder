@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
+const { createFixtureRepo } = require('./helpers/fixture-repo');
 
 const ROOT = path.resolve(__dirname, '..');
 const TODAY = '2026-07-10';
@@ -79,6 +80,30 @@ function deliver(repo, name, { dryRun = false, exitCode = 0 } = {}) {
     saved: fs.readFileSync(path.join(out, `digest-${TODAY}-dryrun.json`)),
   };
 }
+
+test('dryrun consumes complete stdin before exiting', (t) => {
+  const repo = createFixtureRepo(t.after.bind(t));
+  const payload = JSON.parse(fs.readFileSync(path.join(repo, GOLDEN_JSON), 'utf8'));
+  payload.items[0].title = 'Fixture title '.repeat(100000);
+  const input = `${JSON.stringify(payload, null, 2)}\n`;
+  const markdownPath = path.join(repo, 'digest.md');
+  const markdown = '# Fixture digest\n';
+  fs.writeFileSync(markdownPath, markdown);
+
+  for (const dryRun of ['0', '1']) {
+    const result = spawnSync(path.join(repo, 'channels', 'dryrun', 'send'), [markdownPath], {
+      input, encoding: 'utf8', timeout: 10000,
+      env: { ...process.env, SAITA_FEEDER_DRY_RUN: dryRun },
+    });
+    assert.ifError(result.error);
+    assert.strictEqual(result.signal, null, result.stderr);
+    assert.strictEqual(result.status, 0, result.stderr);
+    const banner = dryRun === '1'
+      ? `--- dryrun channel (SAITA_FEEDER_DRY_RUN=1): would print digest ${markdownPath} ---\n`
+      : '';
+    assert.strictEqual(result.stdout, `${banner}${markdown}`);
+  }
+});
 
 test('runner_and_checker_stdin_are_identical', (t) => {
   const repo = createRepo(t);
