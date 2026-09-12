@@ -2,8 +2,10 @@
 """Validate and prepare every upstream core file before updating destinations."""
 
 import json
+import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -59,6 +61,22 @@ def warn_workflow_difference(upstream, root):
         )
 
 
+def validate_destinations(paths, root):
+    index = subprocess.run(
+        ["git", "ls-files", "--cached", "-z"], cwd=root,
+        check=True, stdout=subprocess.PIPE,
+    ).stdout
+    tracked = {os.fsdecode(rel) for rel in index.split(b"\0") if rel}
+    for rel, _, dst in paths:
+        for parent in dst.parents:
+            if parent == root:
+                break
+            if parent.exists() and not parent.is_dir():
+                raise ValueError(f"core destination parent is not a directory: {parent}")
+        if dst.exists() and rel not in tracked:
+            raise ValueError(f"core destination is not tracked in Git index: {rel!r}")
+
+
 def update_core(upstream, root):
     manifest = json.loads(checked_path(upstream, "core-manifest.json").read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
@@ -81,12 +99,14 @@ def update_core(upstream, root):
         # copy2 treats an existing directory as a container for another path.
         if dst.is_dir():
             raise ValueError(f"core destination is a directory: {rel!r}")
-        paths.append((src, dst))
+        paths.append((rel, src, dst))
 
+    # No destination directories or files are changed until every path passes.
+    validate_destinations(paths, root)
     warn_workflow_difference(upstream, root)
     with tempfile.TemporaryDirectory(prefix="feeder-core-") as temporary:
         prepared = []
-        for index, (src, dst) in enumerate(paths):
+        for index, (_, src, dst) in enumerate(paths):
             staged = Path(temporary) / str(index)
             shutil.copy2(src, staged)
             prepared.append((staged, dst))
@@ -101,6 +121,6 @@ def update_core(upstream, root):
 if __name__ == "__main__":
     try:
         update_core(Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve())
-    except (OSError, ValueError, RuntimeError) as error:
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         sys.exit(1)

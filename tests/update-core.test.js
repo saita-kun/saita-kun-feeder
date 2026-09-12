@@ -14,6 +14,10 @@ const OWNED_PATHS = [
   '.github/workflows/deliver.yml', '.git/config',
 ];
 const FIRST_PATHS = ['README.md', 'tools/new/ok.txt'];
+const GIT_ENV = {
+  ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
+  GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: os.devNull,
+};
 
 function write(root, rel, contents) {
   const file = path.join(root, rel);
@@ -46,28 +50,46 @@ function fixture(t) {
   fs.cpSync(path.join(ROOT, 'tools'), path.join(repo, 'tools'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'core-manifest.json'), path.join(repo, 'core-manifest.json'));
   write(repo, 'README.md', Buffer.from('local core\0\xff', 'latin1'));
-  for (const rel of OWNED_PATHS) write(repo, rel, `local ${rel}\n`);
+  for (const rel of OWNED_PATHS) {
+    if (rel !== '.git/config') write(repo, rel, `local ${rel}\n`);
+  }
+  function git(args) {
+    const result = spawnSync('git', args, { cwd: repo, env: GIT_ENV, encoding: 'utf8' });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, result.stderr);
+    return result;
+  }
+  git(['init', '--quiet', '--template=']);
+  git(['add', '--', '.']);
   for (const rel of FIRST_PATHS) write(upstream, rel, `updated ${rel}\n`);
+  // Stub clone and dirty checks; index reads use real Git in the temporary repo.
   fs.chmodSync(write(bin, 'git', [
     '#!/usr/bin/env bash',
     'set -euo pipefail',
     'case "$1" in',
-    '  diff|status) exit 0 ;;',
+    '  diff)',
+    '    if [ "$2" = "--cached" ]; then exit "${FEEDER_FAKE_STAGED_DIRTY:-0}"; fi',
+    '    exit "${FEEDER_FAKE_DIRTY:-0}" ;;',
+    '  status) exit 0 ;;',
+    '  ls-files) TMPDIR="$FEEDER_GIT_TMPDIR" PATH="$FEEDER_REAL_PATH" git "$@" ;;',
     '  clone) cp -R "$FEEDER_FAKE_UPSTREAM" "${@: -1}" ;;',
     '  *) exit 99 ;;',
     'esac',
     '',
   ].join('\n')), 0o755);
   return {
-    base, repo, upstream,
-    run(paths, { manifest = JSON.stringify({ manifest_version: 1, core_paths: paths }), failure } = {}) {
+    base, repo, upstream, git,
+    run(paths, {
+      manifest = JSON.stringify({ manifest_version: 1, core_paths: paths }),
+      failure, observeCopies = false, env = {},
+    } = {}) {
       write(upstream, 'core-manifest.json', manifest);
       const extraEnv = {};
-      if (failure) {
+      if (failure || observeCopies) {
         const python = spawnSync('python3', ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' });
         assert.equal(python.status, 0, python.stderr);
         extraEnv.FEEDER_REAL_PYTHON = python.stdout.trim();
-        extraEnv.FEEDER_FAKE_FAILURE = failure;
+        extraEnv.FEEDER_FAKE_FAILURE = failure || '';
         extraEnv.FEEDER_PYTHON_FAKE = write(base, 'prepare-fake.py', [
           'import builtins, os, runpy, shutil, sys',
           'from pathlib import Path',
@@ -105,8 +127,9 @@ function fixture(t) {
       const before = snapshot(base);
       const result = spawnSync('bash', ['tools/update-core.sh', upstream], {
         cwd: repo, encoding: 'utf8', timeout: 10000,
-        env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`,
-          TMPDIR: tmp, FEEDER_FAKE_UPSTREAM: upstream, ...extraEnv },
+        env: { ...GIT_ENV, PATH: `${bin}${path.delimiter}${GIT_ENV.PATH}`,
+          TMPDIR: tmp, FEEDER_FAKE_UPSTREAM: upstream, FEEDER_REAL_PATH: GIT_ENV.PATH,
+          FEEDER_GIT_TMPDIR: os.tmpdir(), ...extraEnv, ...env },
       });
       assert.ifError(result.error);
       assert.equal(result.signal, null, result.stderr);
@@ -254,6 +277,7 @@ test('FEED-18 prepares all sources first', async (t) => {
       const rel = 'tools/new/later.bin';
       write(f.upstream, rel, Buffer.from([0, 255, 10, 128]));
       fs.chmodSync(write(f.repo, rel, 'existing core bytes\n'), 0o755);
+      f.git(['add', '--', rel]);
       const result = f.run([...FIRST_PATHS, rel], { failure });
       assertUnchanged(f, result);
       assert.match(result.stderr, /FAKE: prepared source: README.md/);
@@ -275,6 +299,124 @@ test('FEED-18 prepares all sources first', async (t) => {
 test('core manifest distributes the update helper and regression tests', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'core-manifest.json'), 'utf8'));
   for (const rel of ['tools/lib/update_core.py', 'tests/update-core.test.js']) {
-    assert.ok(manifest.core_paths.includes(rel), rel);
+    assert.equal(manifest.core_paths.filter((entry) => entry === rel).length, 1, rel);
+  }
+});
+
+test('FEED-17 preserves untracked destinations', async (t) => {
+  for (const kind of ['different bytes', 'identical bytes', 'newline in tracked path']) {
+    await t.test(kind, (t) => {
+      const f = fixture(t);
+      const rel = 'docs/local.txt';
+      const bytes = Buffer.from('local identity\0\xff\n', 'latin1');
+      write(f.repo, rel, bytes);
+      write(f.upstream, rel, kind === 'identical bytes' ? bytes : 'updated bytes\n');
+      if (kind === 'newline in tracked path') {
+        const tracked = `${rel}\nextra.txt`;
+        write(f.repo, tracked, 'tracked bytes\n');
+        f.git(['add', '--', tracked]);
+      }
+      const result = f.run([...FIRST_PATHS, rel], { observeCopies: true });
+      assertUnchanged(f, result);
+      assert.match(result.stderr, /not tracked/);
+      assert.doesNotMatch(result.stderr, /FAKE: prepared source/);
+      assert.deepEqual(fs.readFileSync(path.join(f.repo, rel)), bytes);
+    });
+  }
+});
+
+test('FEED-17 preserves ignored destinations', async (t) => {
+  for (const kind of ['ignored file', 'ignored parent file', 'tracked parent file', 'destination directory']) {
+    await t.test(kind, (t) => {
+      const f = fixture(t);
+      const parent = 'docs/local';
+      const rel = kind.includes('parent') ? `${parent}/nested/core.txt` : parent;
+      write(f.repo, '.gitignore', `${parent}\n`);
+      f.git(['add', '--', '.gitignore']);
+      if (kind === 'destination directory') {
+        write(f.repo, `${rel}/identity.txt`, Buffer.from('directory bytes\0\xff', 'latin1'));
+      } else {
+        write(f.repo, parent, Buffer.from('local bytes\0\xff', 'latin1'));
+      }
+      if (kind === 'tracked parent file') f.git(['add', '--force', '--', parent]);
+      else f.git(['check-ignore', '--quiet', '--', parent]);
+      write(f.upstream, rel, 'updated bytes\n');
+      const result = f.run([...FIRST_PATHS, rel], { observeCopies: true });
+      assertUnchanged(f, result);
+      assert.match(result.stderr, kind.includes('parent') ? /parent.*not a directory/
+        : kind === 'destination directory' ? /destination is a directory/ : /not tracked/);
+      assert.doesNotMatch(result.stderr, /FAKE: prepared source/);
+    });
+  }
+});
+
+test('FEED-17 allows unrelated untracked files', (t) => {
+  const f = fixture(t);
+  const rel = 'docs/local-notes.txt';
+  const file = write(f.repo, rel, Buffer.from('unrelated bytes\0\xff', 'latin1'));
+  const hash = () => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  const beforeHash = hash();
+  const tracked = 'docs/日本語 "notes"\tline\nbreak.txt';
+  write(f.repo, tracked, 'local tracked bytes\n');
+  f.git(['add', '--', tracked]);
+  write(f.upstream, tracked, 'updated tracked bytes\n');
+  const result = f.run([...FIRST_PATHS, tracked]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /copied 3 core files/);
+  for (const rel of [...FIRST_PATHS, tracked]) {
+    assert.deepEqual(fs.readFileSync(path.join(f.repo, rel)), fs.readFileSync(path.join(f.upstream, rel)));
+  }
+  assert.equal(hash(), beforeHash);
+});
+
+test('FEED-17 retains tracked dirty checks', async (t) => {
+  for (const key of ['FEEDER_FAKE_DIRTY', 'FEEDER_FAKE_STAGED_DIRTY']) {
+    await t.test(key, (t) => {
+      const f = fixture(t);
+      const result = f.run(FIRST_PATHS, { env: { [key]: '1' } });
+      assertUnchanged(f, result);
+      assert.match(result.stderr, /working tree is dirty/);
+      assert.doesNotMatch(result.stdout, /fetching upstream/);
+    });
+  }
+});
+
+test('FEED-17 stops before copying when the Git index cannot be read', (t) => {
+  const f = fixture(t);
+  write(f.repo, '.git/index', 'unreadable index fixture\n');
+  assertUnchanged(f, f.run(FIRST_PATHS));
+});
+
+test('FEED-17 preserves local destinations when an upstream source is missing', (t) => {
+  const f = fixture(t);
+  const rel = 'docs/local-only.txt';
+  const bytes = Buffer.from('local-only bytes\0\xff', 'latin1');
+  write(f.repo, rel, bytes);
+  const result = f.run([...FIRST_PATHS, rel], { observeCopies: true });
+  assertUnchanged(f, result);
+  assert.match(result.stderr, /upstream core path is not a regular file: 'docs\/local-only.txt'/);
+  assert.doesNotMatch(result.stderr, /not tracked|FAKE: prepared source/);
+  assert.deepEqual(fs.readFileSync(path.join(f.repo, rel)), bytes);
+});
+
+test('FEED-18 validates all manifest entries before destination collisions', async (t) => {
+  for (const ignored of [false, true]) {
+    for (const later of ['docs/missing.txt', '../outside.txt', FIRST_PATHS[0]]) {
+      await t.test(`${ignored ? 'ignored' : 'untracked'} collision before ${later}`, (t) => {
+        const f = fixture(t);
+        const rel = 'docs/local.txt';
+        write(f.repo, rel, 'local bytes\n');
+        write(f.upstream, rel, 'updated bytes\n');
+        if (ignored) {
+          write(f.repo, '.gitignore', `${rel}\n`);
+          f.git(['add', '--', '.gitignore']);
+          f.git(['check-ignore', '--quiet', '--', rel]);
+        }
+        const result = f.run([...FIRST_PATHS, rel, later], { observeCopies: true });
+        assertUnchanged(f, result);
+        assert.match(result.stderr, /upstream core path is not a regular file|invalid core path|duplicate core path/);
+        assert.doesNotMatch(result.stderr, /not tracked|FAKE: prepared source/);
+      });
+    }
   }
 });
