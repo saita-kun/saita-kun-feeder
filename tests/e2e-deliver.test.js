@@ -5,26 +5,20 @@
 const { test, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const zlib = require('node:zlib');
 const { spawnSync } = require('node:child_process');
-const ledgerLib = require('../lib/ledger');
+const { createFixtureRepo } = require('./helpers/fixture-repo');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = createFixtureRepo(after);
+const ledgerLib = require(path.join(ROOT, 'lib', 'ledger'));
 const FEED_SAMPLE = path.join(ROOT, 'tests', 'fixtures', 'feed-sample');
 const GOLDEN_DIGEST = path.join(ROOT, 'tests', 'fixtures', 'golden-digest', 'digest-2026-07-10-dryrun.md');
 const GOLDEN_DIGEST_JSON = path.join(ROOT, 'tests', 'fixtures', 'golden-digest', 'digest-2026-07-10-dryrun.json');
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'feeder-e2e-'));
-const createdChannelDirs = new Set();
-after(() => {
-  fs.rmSync(tmp, { recursive: true, force: true });
-  for (const dir of createdChannelDirs) {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
+const tmp = path.join(ROOT, 'work');
+fs.mkdirSync(tmp);
 
 function sha256(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex');
@@ -43,7 +37,6 @@ function writeProfile(name, overrides = {}) {
 
 function writeChannel(name, sendScript) {
   const dir = path.join(ROOT, 'channels', name);
-  createdChannelDirs.add(dir);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, 'channel.json'),
