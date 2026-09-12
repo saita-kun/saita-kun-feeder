@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Validate the complete upstream manifest before copying core files."""
+"""Validate and prepare every upstream core file before updating destinations."""
 
 import json
 from pathlib import Path
 import shutil
 import sys
+import tempfile
 
 
 # Local ownership policy from docs/design/repo-structure.md, never the upstream manifest.
@@ -60,28 +61,41 @@ def warn_workflow_difference(upstream, root):
 
 def update_core(upstream, root):
     manifest = json.loads(checked_path(upstream, "core-manifest.json").read_text(encoding="utf-8"))
-    if not isinstance(manifest, dict) or not isinstance(manifest.get("core_paths"), list):
-        raise ValueError("core_paths must be an array")
+    if not isinstance(manifest, dict):
+        raise ValueError("core manifest must be an object")
+    if type(manifest.get("manifest_version")) is not int or manifest["manifest_version"] != 1:
+        raise ValueError("manifest_version must be the integer 1")
+    core_paths = manifest.get("core_paths")
+    if not isinstance(core_paths, list) or not core_paths:
+        raise ValueError("core_paths must be a non-empty array")
     paths = []
-    for rel in manifest["core_paths"]:
+    seen = set()
+    for rel in core_paths:
         validate_relative(rel)
+        if rel in seen:
+            raise ValueError(f"duplicate core path: {rel!r}")
+        seen.add(rel)
         src, dst = checked_path(upstream, rel), checked_path(root, rel)
+        if not src.is_file():
+            raise ValueError(f"upstream core path is not a regular file: {rel!r}")
         # copy2 treats an existing directory as a container for another path.
         if dst.is_dir():
             raise ValueError(f"core destination is a directory: {rel!r}")
-        paths.append((rel, src, dst))
+        paths.append((src, dst))
 
-    # No destination directories or files are changed until every path passes.
     warn_workflow_difference(upstream, root)
-    copied = 0
-    for rel, src, dst in paths:
-        if not src.is_file():
-            print(f"WARN: upstream core path missing, skipped: {rel}", file=sys.stderr)
-            continue
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        copied += 1
-    print(f"copied {copied} core files")
+    with tempfile.TemporaryDirectory(prefix="feeder-core-") as temporary:
+        prepared = []
+        for index, (src, dst) in enumerate(paths):
+            staged = Path(temporary) / str(index)
+            shutil.copy2(src, staged)
+            prepared.append((staged, dst))
+
+        # Read and stage all bytes and modes before creating any destination path.
+        for staged, dst in prepared:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(staged, dst)
+    print(f"copied {len(paths)} core files")
 
 
 if __name__ == "__main__":
