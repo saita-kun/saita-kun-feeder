@@ -202,6 +202,66 @@ test('links_preserves_links_between_escaped_backticks', (t) => {
   assert.match(present.stdout, /relative_ok=1\b/);
 });
 
+test('links_preserves_distinct_reference_labels_with_code_spans', (t) => {
+  const f = fixture(t, { 'README.md': '', 'present.md': '' });
+  for (const [one, two] of [
+    ['`one`', '`two`'], ['``one``', '``two``'],
+    ['before `one` after', 'before `two` after'], ['`one`', 'one'],
+  ]) {
+    const references = [
+      (label) => `[text][${label}]`, (label) => `[${label}][]`, (label) => `[${label}]`,
+      (label) => `![image][${label}]`, (label) => `![${label}][]`, (label) => `![${label}]`,
+    ].flatMap((reference) => [reference(one.toUpperCase()), reference(two)]);
+    write(f.repo, 'README.md', [
+      `[${one}]: present.md`, `[${two}]: missing.md`, '', ...references,
+      '', '`[sample](ignored.md)`',
+    ].join('\n'));
+    const result = f.check();
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stdout, /links=12\b/);
+    assert.match(result.stdout, /relative_ok=6\b/);
+    assert.match(result.stdout, /relative_missing=6\b/);
+    for (const line of [5, 7, 9, 11, 13, 15]) {
+      assert.match(result.stderr, new RegExp(`README\\.md:${line}: missing\\.md`));
+    }
+
+    write(f.repo, 'README.md', fs.readFileSync(path.join(f.repo, 'README.md'), 'utf8')
+      .replaceAll('missing.md', 'present.md'));
+    const present = f.check();
+    assert.equal(present.status, 0, present.stderr);
+    assert.match(present.stdout, /links=12\b/);
+    assert.match(present.stdout, /relative_ok=12\b/);
+  }
+});
+
+test('links_keeps_visible_links_between_backticks_in_separate_blocks', (t) => {
+  const f = fixture(t, { 'README.md': '', 'present.md': '' });
+  const cases = [
+    ['Text `\n\n[visible](missing.md)\n\n` end.', 3],
+    ['Text ``\n \t\n[visible](missing.md)\n\n`` end.', 3],
+    ['Text `\n# Heading\n[visible](missing.md) ` end.', 3],
+    ['- `one\n- [visible](missing.md) two`', 2],
+    ['> Text `\n>\n> [visible](missing.md)\n>\n> ` end.', 3],
+    ['Text `\n~~~\n[sample](ignored.md)\n~~~\n[visible](missing.md) ` end.', 5],
+    ['Text `\n```text\n[sample](ignored.md)\n```\n[visible](missing.md) ` end.', 5],
+    ['Text `\n\n<!--\n[sample](ignored.md)\n--> [visible](missing.md)\n\n` end.', 5],
+  ];
+  for (const [markdown, line] of cases) {
+    write(f.repo, 'README.md', markdown);
+    const result = f.check();
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stdout, /links=1\b/);
+    assert.match(result.stdout, /relative_missing=1\b/);
+    assert.match(result.stderr, new RegExp(`README\\.md:${line}: missing\\.md`));
+
+    write(f.repo, 'README.md', markdown.replaceAll('missing.md', 'present.md'));
+    const present = f.check();
+    assert.equal(present.status, 0, present.stderr);
+    assert.match(present.stdout, /links=1\b/);
+    assert.match(present.stdout, /relative_ok=1\b/);
+  }
+});
+
 test('links_reports_missing_and_unverified', (t) => {
   const f = fixture(t, { 'README.md': '[local](missing.md)\n<https://docs.example/check>' });
   const missing = f.check();

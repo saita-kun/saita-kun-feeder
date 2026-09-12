@@ -36,8 +36,9 @@ HTTP_URL = re.compile(r'''https?://[^\s<>`"'\[\]|）】」』、。]+''')
 LIST_MARKER = re.compile(r'^ {0,3}(?:[-+*]|\d{1,9}[.)])( +|$)')
 QUOTE_MARKER = re.compile(r'^ {0,3}> ?')
 FENCE = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
+# Limit code spans to a line so delimiters never pair across block boundaries.
 # Paired backslashes leave an opener active; backslashes inside a span are literal.
-CODE_SPAN = re.compile(r'(?<!\\)(?:\\\\)*(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)')
+CODE_SPAN = re.compile(r'(?<!\\)(?:\\\\)*(?<!`)(`+)(?!`)[^\n]*?(?<!`)\1(?!`)')
 INLINE_IGNORED = re.compile(CODE_SPAN.pattern + r'|<!--[\s\S]*?-->')
 BLOCK_END = re.compile(r'^ {0,3}(?:#{1,6}(?:\s|$)|(?:=+|-+)\s*$|'
                        r'(?:\*\s*){3,}$|(?:_\s*){3,}$|(?:-\s*){3,}$)')
@@ -138,8 +139,7 @@ def prose(source):
                 index += 1
             lines.append(' ' * (column - prefix) + line[index:])
             paragraph = not block_end
-    return INLINE_IGNORED.sub(lambda match: (blank if match[1] is not None else blank_comment)(match[0]),
-                              ''.join(lines))
+    return ''.join(lines)
 
 
 def closing_emphasis(text, end, protected_ranges):
@@ -180,10 +180,16 @@ def closing_emphasis(text, end, protected_ranges):
 
 
 def extract_links(source):
-    text, links, definitions = prose(source), [], {}
-    normalize = lambda label: ' '.join(label.split()).casefold()
+    original, links, definitions = prose(source), [], {}
+    text = CODE_SPAN.sub(lambda match: blank(match[0]), original)
+
+    def normalize_label(match, group=1):
+        # Masks select link syntax; reference identity uses the original label.
+        start, end = match.span(group)
+        return ' '.join(original[start:end].split()).casefold()
+
     for match in DEFINITION.finditer(text):
-        definitions.setdefault(normalize(match[1]), match[2] if match[2] is not None else match[3])
+        definitions.setdefault(normalize_label(match), match[2] if match[2] is not None else match[3])
     text = DEFINITION.sub(lambda match: blank(match[0]), text)
     emphasis_text = text
     angle_ranges = [match.span() for match in AUTOLINK.finditer(text)]
@@ -205,7 +211,7 @@ def extract_links(source):
     for match in REFERENCE.finditer(text):
         if match[2] is None and text[match.end():match.end() + 1] == '(':
             continue
-        target = definitions.get(normalize(match[2] or match[1]))
+        target = definitions.get(normalize_label(match, 2 if match[2] else 1))
         if target is not None:
             reference_links.add((match.start(), target))
             reference_ranges.append(match.span())
@@ -214,7 +220,7 @@ def extract_links(source):
     for match in IMAGE_REFERENCE.finditer(image_text):
         if match.start() + 1 in inline_labels:
             continue
-        target = definitions.get(normalize(match[2] or match[1]))
+        target = definitions.get(normalize_label(match, 2 if match[2] else 1))
         if target is not None:
             reference_links.add((match.start() + 1, target))
             reference_ranges.append(match.span())
