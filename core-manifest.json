@@ -81,6 +81,7 @@
     "tests/fixtures/match-predicate-golden/08-subsidy-rate.json",
     "tests/fixtures/match-predicate-golden/09-purposes-categories.json",
     "tests/helpers/fixture-repo.js",
+    "tests/ledger.test.js",
     "tests/match-predicate-golden.test.js",
     "tests/update-core.test.js",
     "tools/check-channels.sh",

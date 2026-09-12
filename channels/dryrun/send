@@ -5,6 +5,9 @@ set -euo pipefail
 
 DIGEST_MD="${1:?usage: send <digest.md>}"
 
+# Consume the complete JSON input before exiting (notifier contract).
+cat >/dev/null
+
 if [ "${SAITA_FEEDER_DRY_RUN:-0}" = "1" ]; then
   echo "--- dryrun channel (SAITA_FEEDER_DRY_RUN=1): would print digest ${DIGEST_MD} ---"
 fi
