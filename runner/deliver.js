@@ -36,15 +36,23 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--dry-run') args.dryRun = true;
-    else if (a === '--feed') args.feed = argv[++i];
-    else if (a === '--profile') args.profile = argv[++i];
-    else if (a === '--ledger') args.ledger = argv[++i];
-    else if (a === '--today') args.today = argv[++i];
-    else if (a === '--out') args.out = argv[++i];
-    else throw new Error(`未知の引数です: ${a}`);
+    else if (['--feed', '--profile', '--ledger', '--today', '--out'].includes(a)) {
+      const value = argv[i + 1];
+      if (value === undefined || value === '' || value.startsWith('--')) {
+        throw new Error(`${a} の値を指定してください`);
+      }
+      args[a.slice(2)] = value;
+      i += 1;
+    } else throw new Error(`未知の引数です: ${a}`);
   }
-  if (args.today && !/^\d{4}-\d{2}-\d{2}$/.test(args.today)) {
-    throw new Error(`--today は YYYY-MM-DD 形式で指定してください: ${args.today}`);
+  if (args.today) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(args.today)) {
+      throw new Error(`--today は YYYY-MM-DD 形式で指定してください: ${args.today}`);
+    }
+    const date = new Date(`${args.today}T00:00:00Z`);
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== args.today) {
+      throw new Error(`--today は実在する日付を指定してください: ${args.today}`);
+    }
   }
   return args;
 }

@@ -82,6 +82,7 @@
     "tests/fixtures/match-predicate-golden/09-purposes-categories.json",
     "tests/helpers/fixture-repo.js",
     "tests/match-predicate-golden.test.js",
+    "tests/runner-args.test.js",
     "tests/update-core.test.js",
     "tools/check-channels.sh",
     "tools/check-feed-contract.sh",
