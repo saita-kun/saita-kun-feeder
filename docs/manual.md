@@ -64,6 +64,8 @@ node runner/deliver.js [--dry-run] [--today YYYY-MM-DD] [--feed <url|dir>] \
 - `--today`: 基準日を固定（テスト・検証用）
 - exit code: 0 = 正常 / 1 = 致命的エラー / 2 = 一部送信失敗（台帳に failed 記録、30 分後以降の実行で最大 3 回再送）
 
+`SAITA_FEEDER_DRY_RUN=1 node runner/deliver.js` のように環境変数だけを指定した場合も dry-run となり、既存台帳を変更せず、新規台帳も作成しません。`--dry-run` は環境変数の値によらず有効です。CLI 指定がない場合、環境変数が厳密に `"1"` のときだけ dry-run となり、未設定・`"0"`・`"true"` 等は通常実行です。子アダプタには実効状態に応じて `"1"` または `"0"` を渡します。
+
 ## プロファイルの調整
 
 `profile/delivery-profile.json` を編集し、`tools/check-profile.sh` で検証します。絞り込み軸の意味（NULL = 制約なし・部分一致 = いずれか一致）は `schemas/delivery-profile.schema.json` の説明を参照。編集後はコミットを忘れずに（GitHub Actions が読むため）。

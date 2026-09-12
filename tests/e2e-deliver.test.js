@@ -52,10 +52,13 @@ function writeChannel(name, sendScript) {
   fs.chmodSync(sendPath, 0o755);
 }
 
-function run(args) {
+function run(args, env = {}) {
+  const childEnv = { ...process.env, SAITA_FEEDER_DRY_RUN: '0', ...env };
+  if (childEnv.SAITA_FEEDER_DRY_RUN === undefined) delete childEnv.SAITA_FEEDER_DRY_RUN;
   const res = spawnSync(process.execPath, [path.join(ROOT, 'runner', 'deliver.js'), ...args], {
     cwd: ROOT,
     encoding: 'utf8',
+    env: childEnv,
   });
   assert.strictEqual(res.error, undefined);
   return res;

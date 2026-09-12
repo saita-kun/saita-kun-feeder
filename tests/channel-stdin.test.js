@@ -10,6 +10,30 @@ const ROOT = path.resolve(__dirname, '..');
 const TODAY = '2026-07-10';
 const GOLDEN_JSON = 'tests/fixtures/golden-digest/digest-2026-07-10-dryrun.json';
 
+test('bundled dryrun channel consumes stdin and preserves markdown output', (t) => {
+  const dir = fs.mkdtempSync(path.join(ROOT, '.channel-stdin-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const markdown = '# Fixture digest\n';
+  const digestPath = path.join(dir, 'digest.md');
+  fs.writeFileSync(digestPath, markdown);
+  const digest = JSON.parse(fs.readFileSync(path.join(ROOT, GOLDEN_JSON)));
+  // Exceed pipe capacity so completing stdin delivery requires a reader.
+  digest.items[0].title = 'fixture '.repeat(128 * 1024);
+  for (const mode of ['0', '1']) {
+    const result = spawnSync(path.join(ROOT, 'channels', 'dryrun', 'send'), [digestPath], {
+      input: `${JSON.stringify(digest, null, 2)}\n`,
+      encoding: 'utf8',
+      timeout: 10000,
+      env: { ...process.env, SAITA_FEEDER_DRY_RUN: mode },
+    });
+    assert.ifError(result.error);
+    assert.strictEqual(result.status, 0, result.stderr);
+    const banner = mode === '1'
+      ? `--- dryrun channel (SAITA_FEEDER_DRY_RUN=1): would print digest ${digestPath} ---\n` : '';
+    assert.strictEqual(result.stdout, banner + markdown);
+  }
+});
+
 function createRepo(t) {
   const repo = fs.mkdtempSync(path.join(ROOT, '.channel-stdin-'));
   t.after(() => fs.rmSync(repo, { recursive: true, force: true }));
@@ -126,7 +150,7 @@ test('normal_and_dry_run_use_the_same_stdin', (t) => {
   const dry = deliver(repo, 'dry', { dryRun: true });
   assert.strictEqual(normal.status, 0, normal.stderr);
   assert.strictEqual(dry.status, 0, dry.stderr);
-  assert.strictEqual(normal.mode, '');
+  assert.strictEqual(normal.mode, '0');
   assert.strictEqual(dry.mode, '1');
   assert.ok(normal.stdin.equals(dry.stdin), 'normal and dry-run stdin bytes must match');
   assert.strictEqual(normal.stdin.at(-1), 0x0a, 'stdin must end with LF');
