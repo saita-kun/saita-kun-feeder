@@ -58,6 +58,7 @@
     "schemas/feed-meta.schema.json",
     "schemas/feed-subsidy.schema.json",
     "schemas/ledger.schema.json",
+    "tests/ai-agent-guide.test.js",
     "tests/basis-date.test.js",
     "tests/channel-stdin.test.js",
     "tests/check-feed-contract.test.js",
