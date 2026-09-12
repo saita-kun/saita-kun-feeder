@@ -24,7 +24,7 @@ const { spawnSync } = require('node:child_process');
 const { isOpen, isSubsidyMatchingUser } = require('../lib/match-user-subsidy');
 const { loadFeed, freshnessWarnings } = require('../lib/feed-client');
 const ledgerLib = require('../lib/ledger');
-const { remainingBudget, selectWithinBudget } = require('../lib/select');
+const { createBudget, selectWithinBudget } = require('../lib/select');
 const { renderDigest } = require('../lib/digest');
 const { basisDate, basisDateCarrier } = require('../lib/basis-date');
 
@@ -146,9 +146,8 @@ async function main() {
   );
 
   const ledger = ledgerLib.loadLedger(ledgerPath);
-  // Budget is fixed at run start: sibling channels deliver the same content,
-  // so sends within this run do not consume each other's budget.
-  const budget = remainingBudget(ledger, nowMs, {
+  // Share counted IDs across channels, including successes saved by earlier runs.
+  let budget = createBudget(ledger, nowMs, {
     weeklyCap: profile.weekly_cap,
     dailyCap: profile.daily_cap,
   });
@@ -164,9 +163,13 @@ async function main() {
       if (plan.action !== 'skip') actionable.push({ subsidy, plan });
     }
 
+    // Keep capacity reservations local until this channel succeeds.
+    const channelBudget = budget.map(({ remaining, countedIds }) => ({
+      remaining, countedIds: new Set(countedIds),
+    }));
     const { selected, dropped } = selectWithinBudget(
       actionable.map((a) => a.subsidy),
-      budget
+      channelBudget
     );
     const planById = new Map(actionable.map((a) => [a.subsidy.id, a.plan]));
     const items = selected.map((subsidy) => ({
@@ -206,11 +209,12 @@ async function main() {
           notifiedAs: notifiedAs === 'retry' ? undefined : notifiedAs,
         });
       }
+      ledgerLib.saveLedger(ledgerPath, ledger);
     }
-    if (!result.ok) anyFailed = true;
+    if (result.ok) budget = channelBudget;
+    else anyFailed = true;
   }
 
-  if (!effectiveDryRun) ledgerLib.saveLedger(ledgerPath, ledger);
   for (const w of warnings) console.log(`警告: ${w}`);
 
   process.exitCode = anyFailed ? 2 : 0;

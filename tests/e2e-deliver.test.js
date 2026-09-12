@@ -52,10 +52,10 @@ function writeChannel(name, sendScript) {
   fs.chmodSync(sendPath, 0o755);
 }
 
-function run(args, env = {}) {
+function run(args, env = {}, nodeArgs = []) {
   const childEnv = { ...process.env, SAITA_FEEDER_DRY_RUN: '0', ...env };
   if (childEnv.SAITA_FEEDER_DRY_RUN === undefined) delete childEnv.SAITA_FEEDER_DRY_RUN;
-  const res = spawnSync(process.execPath, [path.join(ROOT, 'runner', 'deliver.js'), ...args], {
+  const res = spawnSync(process.execPath, [...nodeArgs, path.join(ROOT, 'runner', 'deliver.js'), ...args], {
     cwd: ROOT,
     encoding: 'utf8',
     env: childEnv,
@@ -96,7 +96,7 @@ const baseArgs = [
 
 test('E2E(1) first run: digest is byte-identical to golden', () => {
   const res = run([...baseArgs, '--today', '2026-07-10']);
-  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(res.status, 0, `${res.stdout}\n${res.stderr}`);
   const digest = fs.readFileSync(path.join(outDir, 'digest-2026-07-10-dryrun.md'), 'utf8');
   const golden = fs.readFileSync(GOLDEN_DIGEST, 'utf8');
   assert.strictEqual(digest, golden);
@@ -121,7 +121,7 @@ test('E2E(2) ledger records 1001/1002/1003 as sent (new), excludes 1004/1005', (
 test('E2E(3) second run is idempotent: nothing delivered, ledger unchanged', () => {
   const before = fs.readFileSync(ledgerPath, 'utf8');
   const res = run([...baseArgs, '--today', '2026-07-10']);
-  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(res.status, 0, `${res.stdout}\n${res.stderr}`);
   assert.match(res.stdout, /新着・更新なし — 配信しません/);
   assert.strictEqual(fs.readFileSync(ledgerPath, 'utf8'), before);
 });
@@ -138,7 +138,7 @@ test('E2E(4) content-hash change re-notifies exactly one row as updated', () => 
     '--out', outDir,
     '--today', '2026-07-11',
   ]);
-  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(res.status, 0, `${res.stdout}\n${res.stderr}`);
   const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
   assert.strictEqual(ledger.entries['1001'].channels.dryrun.notified_as, 'updated');
   assert.strictEqual(ledger.entries['1001'].channels.dryrun.last_attempt_at, '2026-07-11T00:00:00.000Z');
@@ -151,7 +151,7 @@ test('E2E(4) content-hash change re-notifies exactly one row as updated', () => 
 test('channel-local hashes: a content update is delivered to every configured channel', () => {
   const channelNames = ['e2e-a', 'e2e-b'];
   for (const name of channelNames) {
-    writeChannel(name, '#!/usr/bin/env bash\nset -euo pipefail\ncat "$1" >/dev/null\n');
+    writeChannel(name, '#!/usr/bin/env bash\nset -euo pipefail\ncat >/dev/null\ncat "$1" >/dev/null\n');
   }
 
   const multiProfile = writeProfile('profile-multi.json', {
@@ -189,7 +189,7 @@ test('channel-local hashes: a content update is delivered to every configured ch
     '--out', outDir,
     '--today', '2026-07-11',
   ]);
-  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(res.status, 0, `${res.stdout}\n${res.stderr}`);
 
   const ledger = JSON.parse(fs.readFileSync(multiLedger, 'utf8'));
   for (const name of channelNames) {
@@ -214,7 +214,7 @@ test('E2E(5) stale feed surfaces a warning banner in the digest', () => {
     '--out', outDir,
     '--today', '2026-08-01',
   ]);
-  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(res.status, 0, `${res.stdout}\n${res.stderr}`);
   const digest = fs.readFileSync(path.join(outDir, 'digest-2026-08-01-dryrun.md'), 'utf8');
   assert.match(digest, /## ⚠ 注意/);
   assert.match(digest, /フィード停止の可能性/);
@@ -230,9 +230,23 @@ test('dry-run never mutates the ledger', () => {
     '--today', '2026-07-10',
     '--dry-run',
   ]);
-  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(res.status, 0, `${res.stdout}\n${res.stderr}`);
   assert.ok(!fs.existsSync(dryLedger), 'dry-run must not create a ledger');
   assert.match(res.stdout, /SAITA_FEEDER_DRY_RUN=1/);
+});
+
+test('dryrun channel consumes the complete digest input before exiting', () => {
+  const digest = JSON.parse(fs.readFileSync(GOLDEN_DIGEST_JSON, 'utf8'));
+  digest.warnings = ['Fixture warning. '.repeat(65536)];
+  const result = spawnSync(path.join(ROOT, 'channels', 'dryrun', 'send'), [GOLDEN_DIGEST], {
+    input: `${JSON.stringify(digest, null, 2)}\n`,
+    encoding: 'utf8',
+    timeout: 10000,
+    env: { ...process.env, SAITA_FEEDER_DRY_RUN: '' },
+  });
+  assert.ifError(result.error);
+  assert.strictEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.strictEqual(result.stdout, fs.readFileSync(GOLDEN_DIGEST, 'utf8'));
 });
 
 test('dry-run invokes configured enabled channels with SAITA_FEEDER_DRY_RUN=1', () => {
@@ -260,7 +274,7 @@ test('dry-run invokes configured enabled channels with SAITA_FEEDER_DRY_RUN=1', 
     '--today', '2026-07-10',
     '--dry-run',
   ]);
-  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(res.status, 0, `${res.stdout}\n${res.stderr}`);
   assert.match(res.stdout, /configured dry-run channel:/);
   assert.ok(fs.existsSync(path.join(dryOut, 'digest-2026-07-10-e2e-dry.md')));
   assert.ok(!fs.existsSync(path.join(dryOut, 'digest-2026-07-10-dryrun.md')));
@@ -294,4 +308,267 @@ test('failing channel: recorded as failed, backoff skips, next day retries', () 
   ledger = JSON.parse(fs.readFileSync(failLedger, 'utf8'));
   assert.strictEqual(ledger.entries['1001'].channels['e2e-fail'].retry_count, 1);
   assert.strictEqual(ledger.entries['1001'].channels['e2e-fail'].notified_as, 'new');
+});
+
+function checkpointRun(label, overrides = {}) {
+  const dir = path.join(tmp, label);
+  fs.mkdirSync(dir);
+  const names = [`e2e-${label}-a`, `e2e-${label}-b`];
+  const calls = path.join(dir, 'calls.txt');
+  const ledger = path.join(dir, 'ledger.json');
+  const out = path.join(dir, 'out');
+  const profile = writeProfile(`profile-${label}.json`, {
+    channels: names.map((name) => ({ name, enabled: true })),
+    daily_cap: 10,
+    ...overrides,
+  });
+  function configure(name, body = '') {
+    writeChannel(name, [
+      '#!/usr/bin/env node',
+      "const fs = require('node:fs');",
+      "const digest = JSON.parse(fs.readFileSync(0, 'utf8'));",
+      `fs.appendFileSync(${JSON.stringify(calls)}, ${JSON.stringify(`${name}\n`)});`,
+      body,
+      '',
+    ].join('\n'));
+  }
+  for (const name of names) configure(name);
+  return {
+    dir, names, calls, ledger, out, configure,
+    args: ['--feed', FEED_SAMPLE, '--profile', profile, '--ledger', ledger,
+      '--out', out, '--today', '2026-07-10'],
+  };
+}
+
+test('FEED-11 preserves earlier success', () => {
+  const setup = checkpointRun('preserve');
+  const [a, b] = setup.names;
+  const blockedOutput = path.join(setup.out, `digest-2026-07-10-${b}.md`);
+  fs.mkdirSync(blockedOutput, { recursive: true });
+
+  const first = run(setup.args);
+  assert.strictEqual(first.status, 1, `${first.stdout}\n${first.stderr}`);
+  assert.match(first.stderr, /EISDIR/);
+  assert.strictEqual(fs.readFileSync(setup.calls, 'utf8'), `${a}\n`);
+  const saved = JSON.parse(fs.readFileSync(setup.ledger, 'utf8'));
+  assert.deepStrictEqual(Object.keys(saved.entries).sort(), ['1001', '1002', '1003']);
+  for (const entry of Object.values(saved.entries)) {
+    assert.strictEqual(entry.channels[a].status, 'sent');
+    assert.strictEqual(entry.channels[b], undefined);
+  }
+
+  fs.rmdirSync(blockedOutput);
+  fs.writeFileSync(setup.calls, '');
+  const second = run(setup.args);
+  assert.strictEqual(second.status, 0, `${second.stdout}\n${second.stderr}`);
+  assert.strictEqual(fs.readFileSync(setup.calls, 'utf8'), `${b}\n`,
+    'only B may be invoked on the next run');
+  const retried = JSON.parse(fs.readFileSync(setup.ledger, 'utf8'));
+  for (const id of Object.keys(saved.entries)) {
+    assert.deepStrictEqual(retried.entries[id].channels[a], saved.entries[id].channels[a]);
+    assert.strictEqual(retried.entries[id].channels[b].status, 'sent');
+  }
+});
+
+for (const cap of ['daily_cap', 'weekly_cap']) {
+  test(`FEED-11 resumes unsent channel when ${cap} is exhausted`, () => {
+    const setup = checkpointRun(`resume-${cap.replace('_', '-')}`, { [cap]: 3 });
+    const [a, b] = setup.names;
+    const received = path.join(setup.dir, 'received.json');
+    setup.configure(b, `fs.writeFileSync(${JSON.stringify(received)}, JSON.stringify(digest));`);
+    const blockedOutput = path.join(setup.out, `digest-2026-07-10-${b}.md`);
+    fs.mkdirSync(blockedOutput, { recursive: true });
+
+    const first = run(setup.args);
+    assert.strictEqual(first.status, 1, `${first.stdout}\n${first.stderr}`);
+    assert.match(first.stderr, /EISDIR/);
+    assert.strictEqual(fs.readFileSync(setup.calls, 'utf8'), `${a}\n`);
+    assert.ok(!fs.existsSync(received));
+    const saved = JSON.parse(fs.readFileSync(setup.ledger, 'utf8'));
+    assert.deepStrictEqual(Object.keys(saved.entries).sort(), ['1001', '1002', '1003']);
+    for (const entry of Object.values(saved.entries)) {
+      assert.strictEqual(entry.channels[a].status, 'sent');
+      assert.strictEqual(entry.channels[b], undefined);
+    }
+
+    fs.rmdirSync(blockedOutput);
+    const second = run(setup.args);
+    assert.strictEqual(second.status, 0, `${second.stdout}\n${second.stderr}`);
+    assert.ok(second.stdout.includes(`[${a}] 新着・更新なし — 配信しません`));
+    assert.strictEqual(fs.readFileSync(setup.calls, 'utf8'), `${a}\n${b}\n`);
+    const delivered = JSON.parse(fs.readFileSync(received, 'utf8'));
+    assert.deepStrictEqual(delivered.items.map((item) => item.id).sort(), ['1001', '1002', '1003']);
+    assert.strictEqual(delivered.dropped_count, 0);
+    const retried = JSON.parse(fs.readFileSync(setup.ledger, 'utf8'));
+    for (const id of Object.keys(saved.entries)) {
+      assert.deepStrictEqual(retried.entries[id].channels[a], saved.entries[id].channels[a]);
+      assert.strictEqual(retried.entries[id].channels[b].status, 'sent');
+      assert.strictEqual(retried.entries[id].channels[b].last_sent_hash, saved.entries[id].channels[a].last_sent_hash);
+    }
+
+    const before = fs.readFileSync(setup.ledger, 'utf8');
+    const third = run(setup.args);
+    assert.strictEqual(third.status, 0, `${third.stdout}\n${third.stderr}`);
+    assert.strictEqual(fs.readFileSync(setup.calls, 'utf8'), `${a}\n${b}\n`);
+    assert.strictEqual(fs.readFileSync(setup.ledger, 'utf8'), before);
+  });
+}
+
+test('FEED-11 resumes counted IDs while higher-priority new candidates remain capped', () => {
+  const setup = checkpointRun('resume-mixed', { daily_cap: 2 });
+  const [a, b] = setup.names;
+  const received = path.join(setup.dir, 'received.json');
+  setup.configure(b, `fs.writeFileSync(${JSON.stringify(received)}, JSON.stringify(digest));`);
+  const data = JSON.parse(fs.readFileSync(path.join(FEED_SAMPLE, 'subsidies.json'), 'utf8'));
+  const ledger = { ledger_version: 1, entries: {} };
+  for (const id of ['1001', '1003']) {
+    const subsidy = data.subsidies.find((item) => item.id === id);
+    ledgerLib.recordResult(ledger, subsidy, a, {
+      ok: true, nowIso: '2026-07-10T00:00:00.000Z', hash: ledgerLib.contentHash(subsidy), notifiedAs: 'new',
+    });
+  }
+  fs.writeFileSync(setup.ledger, JSON.stringify(ledger));
+
+  const result = run(setup.args);
+  assert.strictEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.strictEqual(fs.readFileSync(setup.calls, 'utf8'), `${b}\n`);
+  const delivered = JSON.parse(fs.readFileSync(received, 'utf8'));
+  assert.deepStrictEqual(delivered.items.map((item) => item.id), ['1001', '1003']);
+  assert.strictEqual(delivered.dropped_count, 1);
+  const saved = JSON.parse(fs.readFileSync(setup.ledger, 'utf8'));
+  assert.strictEqual(saved.entries['1002'], undefined);
+  for (const id of ['1001', '1003']) {
+    assert.deepStrictEqual(saved.entries[id].channels[a], ledger.entries[id].channels[a]);
+    assert.strictEqual(saved.entries[id].channels[b].status, 'sent');
+  }
+});
+
+test('FEED-11 resumes a channel-local content update at the daily cap', () => {
+  const setup = checkpointRun('resume-updated', { daily_cap: 3 });
+  const [a, b] = setup.names;
+  const received = path.join(setup.dir, 'received.json');
+  setup.configure(b, `fs.writeFileSync(${JSON.stringify(received)}, JSON.stringify(digest));`);
+  const data = JSON.parse(fs.readFileSync(path.join(FEED_SAMPLE, 'subsidies.json'), 'utf8'));
+  const ledger = { ledger_version: 1, entries: {} };
+  for (const id of ['1001', '1002', '1003']) {
+    const subsidy = data.subsidies.find((item) => item.id === id);
+    for (const channel of setup.names) {
+      ledgerLib.recordResult(ledger, subsidy, channel, {
+        ok: true, nowIso: '2026-07-10T00:00:00.000Z', hash: ledgerLib.contentHash(subsidy), notifiedAs: 'new',
+      });
+    }
+  }
+  const feed = path.join(setup.dir, 'feed');
+  writeMutatedFeed(feed, (data) => {
+    const subsidy = data.subsidies.find((item) => item.id === '1001');
+    subsidy.maximum_amount = 6000000;
+    ledgerLib.recordResult(ledger, subsidy, a, {
+      ok: true, nowIso: '2026-07-10T00:00:00.000Z', hash: ledgerLib.contentHash(subsidy), notifiedAs: 'updated',
+    });
+  });
+  fs.writeFileSync(setup.ledger, JSON.stringify(ledger));
+
+  const result = run([...setup.args, '--feed', feed]);
+  assert.strictEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.strictEqual(fs.readFileSync(setup.calls, 'utf8'), `${b}\n`);
+  const delivered = JSON.parse(fs.readFileSync(received, 'utf8'));
+  assert.deepStrictEqual(delivered.items.map(({ id, notified_as }) => ({ id, notified_as })),
+    [{ id: '1001', notified_as: 'updated' }]);
+  assert.strictEqual(delivered.dropped_count, 0);
+  const saved = JSON.parse(fs.readFileSync(setup.ledger, 'utf8'));
+  for (const id of ['1001', '1002', '1003']) {
+    assert.deepStrictEqual(saved.entries[id].channels[a], ledger.entries[id].channels[a]);
+  }
+  assert.strictEqual(saved.entries['1001'].channels[b].last_sent_hash, ledger.entries['1001'].channels[a].last_sent_hash);
+});
+
+for (const ok of [true, false]) {
+  const outcome = ok ? 'successful channel shares capacity' : 'failed channel leaves capacity';
+  test(`FEED-11 ${outcome} for another channel with different candidates`, () => {
+    const setup = checkpointRun(`capacity-${ok ? 'success' : 'failure'}`, { daily_cap: 1 });
+    const [a, b] = setup.names;
+    setup.configure(a, `process.exit(${ok ? 0 : 7});`);
+    const received = path.join(setup.dir, 'received.json');
+    setup.configure(b, `fs.writeFileSync(${JSON.stringify(received)}, JSON.stringify(digest));`);
+    const data = JSON.parse(fs.readFileSync(path.join(FEED_SAMPLE, 'subsidies.json'), 'utf8'));
+    const subsidy = data.subsidies.find((item) => item.id === '1002');
+    const ledger = { ledger_version: 1, entries: {} };
+    ledgerLib.recordResult(ledger, subsidy, b, {
+      ok: true, nowIso: '2026-07-01T00:00:00.000Z', hash: ledgerLib.contentHash(subsidy), notifiedAs: 'new',
+    });
+    fs.writeFileSync(setup.ledger, JSON.stringify(ledger));
+
+    const result = run(setup.args);
+    assert.strictEqual(result.status, ok ? 0 : 2, `${result.stdout}\n${result.stderr}`);
+    assert.strictEqual(fs.readFileSync(setup.calls, 'utf8'), ok ? `${a}\n` : `${a}\n${b}\n`);
+    const saved = JSON.parse(fs.readFileSync(setup.ledger, 'utf8'));
+    if (ok) {
+      assert.ok(!fs.existsSync(received));
+      assert.strictEqual(saved.entries['1001'], undefined);
+    } else {
+      const delivered = JSON.parse(fs.readFileSync(received, 'utf8'));
+      assert.deepStrictEqual(delivered.items.map((item) => item.id), ['1001']);
+      assert.strictEqual(delivered.dropped_count, 1);
+      assert.strictEqual(saved.entries['1001'].channels[b].status, 'sent');
+    }
+    assert.strictEqual(saved.entries['1002'].channels[a].status, ok ? 'sent' : 'failed');
+    assert.deepStrictEqual(saved.entries['1002'].channels[b], ledger.entries['1002'].channels[b]);
+    assert.strictEqual(ledgerLib.countSentWithin(saved, Date.parse('2026-07-10T00:00:00.000Z'), 24 * 60 * 60 * 1000), 1);
+  });
+}
+
+test('FEED-11 checkpoints failures and stops on save error', async (t) => {
+  await t.test('B observes A failed before sending; ordinary send failure exits 2', () => {
+    const setup = checkpointRun('failed');
+    const [a, b] = setup.names;
+    const observed = path.join(setup.dir, 'observed.json');
+    setup.configure(a, 'process.exit(7);');
+    setup.configure(b, [
+      `const checkpoint = JSON.parse(fs.readFileSync(${JSON.stringify(setup.ledger)}, 'utf8'));`,
+      `require('node:assert').strictEqual(checkpoint.entries['1001'].channels[${JSON.stringify(a)}].status, 'failed');`,
+      `fs.writeFileSync(${JSON.stringify(observed)}, JSON.stringify(checkpoint));`,
+    ].join('\n'));
+
+    const result = run(setup.args);
+    assert.strictEqual(result.status, 2, `${result.stdout}\n${result.stderr}`);
+    assert.strictEqual(fs.readFileSync(setup.calls, 'utf8'), `${a}\n${b}\n`);
+    const checkpoint = JSON.parse(fs.readFileSync(observed, 'utf8'));
+    const saved = JSON.parse(fs.readFileSync(setup.ledger, 'utf8'));
+    assert.deepStrictEqual(Object.keys(checkpoint.entries).sort(), ['1001', '1002', '1003']);
+    for (const id of Object.keys(checkpoint.entries)) {
+      assert.strictEqual(checkpoint.entries[id].channels[a].status, 'failed');
+      assert.strictEqual(checkpoint.entries[id].channels[b], undefined);
+      assert.deepStrictEqual(saved.entries[id].channels[a], checkpoint.entries[id].channels[a]);
+      assert.strictEqual(saved.entries[id].channels[b].status, 'sent');
+    }
+  });
+
+  for (const status of [0, 7]) {
+    await t.test(`save error after adapter exit ${status} stops before B and exits 1`, () => {
+      const setup = checkpointRun(`save-error-${status}`);
+      const [a, b] = setup.names;
+      setup.configure(a, `process.exit(${status});`);
+      const original = '{"ledger_version":1,"entries":{}}\n';
+      fs.writeFileSync(setup.ledger, original);
+      const preload = path.join(setup.dir, 'fail-save.cjs');
+      fs.writeFileSync(preload, [
+        "const fs = require('node:fs');",
+        'const rename = fs.renameSync;',
+        'fs.renameSync = (from, to) => {',
+        `  if (to === ${JSON.stringify(setup.ledger)}) throw new Error('FEED-11 save failure');`,
+        '  return rename(from, to);',
+        '};',
+        '',
+      ].join('\n'));
+
+      const result = run(setup.args, {}, ['--require', preload]);
+      assert.strictEqual(result.status, 1, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, /FEED-11 save failure/);
+      assert.strictEqual(fs.readFileSync(setup.calls, 'utf8'), `${a}\n`);
+      assert.ok(!fs.existsSync(path.join(setup.out, `digest-2026-07-10-${b}.md`)));
+      assert.strictEqual(fs.readFileSync(setup.ledger, 'utf8'), original);
+      assert.deepStrictEqual(fs.readdirSync(setup.dir).sort(),
+        ['cache', 'calls.txt', 'fail-save.cjs', 'ledger.json', 'out']);
+    });
+  }
 });
