@@ -792,6 +792,143 @@ test('links_default_mode_makes_no_http_calls', (t) => {
   assert.match(missing.stdout, /validate: FAIL/);
 });
 
+test('links_v4_fixture_table', async (t) => {
+  const local = 'missing.md';
+  const remote = 'https://docs.example/check';
+  const label = 'https://docs.example/label';
+  const cases = [
+    ['inline_label_url', `[${label}](${local})`, [[1, local]]],
+    ['reference_label_url', `[see [${label}]][ref]\n\n[ref]: ${local}`, [[1, local]]],
+    ['wrapped_label_url', `[see\n${label}][ref]\n\n[ref]: ${local}`, [[1, local]]],
+    ['nested_reference_image', `[![${label}][ref]](${remote})\n\n[ref]: ${local}`,
+      [[1, remote], [1, local]]],
+    ['nested_inline_image', `[![badge](${local})](${remote})`, [[1, remote], [1, local]]],
+    ['html_comment', `<!-- [sample](ignored.md) --> [visible](${local})`, [[1, local]]],
+    ['html_comment_block', `<!--\n~~~\n[ref]: ignored.md\n-->\n[visible](${local})`, [[5, local]]],
+    ['html_comment_label', `[text <!--\ncomment\n--> label](${local})`, [[1, local]]],
+    ['html_comment_in_code', `\`<!--\` [visible](${local})`, [[1, local]]],
+    ['code_span', `Text \`[hidden](${local}) <${remote}>\``, []],
+    ['code_span_closing_backslash', `Text \`[hidden](ignored.md) \\\` [visible](${local})`, [[1, local]]],
+    ['unclosed_code_span', `Text \` [visible](${local})`, [[1, local]]],
+    ['distinct_code_labels', `[\`one\`]\n[\`two\`][]\n[text][\`TWO\`]\n\n[\`one\`]: present.md\n[\`two\`]: ${local}`,
+      [[1, 'present.md'], [2, local], [3, local]]],
+    ['adjacent_full_reference', `[one][two]\n\n[one]: ignored.md\n[two]: ${local}`, [[1, local]]],
+    ['angle_autolink_brackets', `<${remote}?filters[area](Tokyo)=yes>`, [[1, `${remote}?filters[area](Tokyo)=yes`]]],
+    ['angle_autolink_backslash', `<${remote}?find=\\*&amp;mode=literal>`, [[1, `${remote}?find=\\*&mode=literal`]]],
+    ['inline_backslash', `[guide](${remote}?find=\\*)`, [[1, `${remote}?find=*`]]],
+  ];
+  for (const marker of ['*', '**', '_', '__', '~~', '***', '**_']) {
+    const closing = [...marker].reverse().join('');
+    cases.push([`emphasis_${marker}`, `${marker}See ${remote}${closing}.`, [[1, remote]]]);
+    cases.push([`emphasis_label_${marker}`, `${marker}[${label}](${local})${closing} ${remote}**`,
+      [[1, local], [1, `${remote}**`]]]);
+  }
+  for (const [index, title] of [
+    String.raw`"A \"quoted\" title [unused] https://docs.example/title"`,
+    String.raw`'A \'quoted\' title [unused] https://docs.example/title'`,
+    String.raw`(A \(parenthesized\) title [unused] https://docs.example/title)`,
+    String.raw`"A trailing backslash \\"`,
+    '"A \\"quoted\\"\nmultiline title"',
+  ].entries()) {
+    cases.push([`escaped_title_${index}`, `[guide](${local} ${title})\n\n[unused]: ignored.md`, [[1, local]]]);
+  }
+  for (const [index, [opening, continuation]] of [
+    ['- ', '  '], ['123456789. ', '           '], ['> ', '> '], ['> - ', '>   '],
+    ['- > ', '  > '], ['- - ', '    '], ['> > ', '> > '], ['  - ', '    '],
+  ].entries()) {
+    cases.push([`container_definition_${index}`, `[ref]\n\n${opening}[ref]:\n${continuation}  ${local}\n${continuation}  "Title [unused]"\n\n[unused]: ignored.md`, [[1, local]]]);
+    cases.push([`container_fence_${index}`, `${opening}\`\`\`text\n${continuation}[sample](ignored.md)\n${continuation}\`\`\`\n${continuation}[visible](${local})`, [[4, local]]]);
+  }
+  for (const [index, [markdown, line]] of [
+    [`Text \`\n\n[visible](${local})\n\n\` end.`, 3],
+    [`Text \`\`\n \t\n[visible](${local})\n\n\`\` end.`, 3],
+    [`Text \`\n# Heading\n[visible](${local}) \` end.`, 3],
+    [`- \`one\n- [visible](${local}) two\``, 2],
+    [`> Text \`\n>\n> [visible](${local})\n>\n> \` end.`, 3],
+    [`Text \`\n~~~\n[sample](ignored.md)\n~~~\n[visible](${local}) \` end.`, 5],
+    [`Text \`\n\n<!--\n[sample](ignored.md)\n--> [visible](${local})\n\n\` end.`, 5],
+  ].entries()) cases.push([`block_boundary_${index}`, markdown, [[line, local]]]);
+  for (const separator of [' ', '\t']) {
+    cases.push([`separate_references_${JSON.stringify(separator)}`, `[one]${separator}[two]\n\n[one]: present.md\n[two]: ${local}`,
+      [[1, 'present.md'], [1, local]]]);
+  }
+  for (const fence of ['~~~', '```']) {
+    for (const suffix of [`(${local})`, '[ref]']) {
+      cases.push([`comment_label_fence_${fence}_${suffix}`,
+        `[text <!--\n${fence}\n[sample](ignored.md)\n--> label]${suffix}\n\n[ref]: ${local}`, [[1, local]]]);
+    }
+  }
+  for (const count of [0, 1, 2, 3, 4]) {
+    const slashes = '\\'.repeat(count);
+    for (const suffix of [`(${local})`, '[]', '', '[ref]']) {
+      cases.push([`bracket_parity_${count}_${suffix}`, `${slashes}[ref]${suffix}\n\n[ref]: ${local}`,
+        count % 2 && suffix !== '[ref]' ? [] : [[1, local]]]);
+    }
+    cases.push([`backtick_parity_${count}`, `Text ${slashes}\` [visible](${local}) ${slashes}\``,
+      count % 2 ? [[1, local]] : []]);
+    cases.push([`comment_parity_${count}`, `${slashes}<!--\n[visible](${local}) -->`,
+      count % 2 ? [[2, local]] : []]);
+  }
+  for (const [index, destination] of [
+    'missing`name`.md', 'missing`name.md', 'missing``name``.md',
+    'missing(one(two(three))).md', 'missing`one(two(three))`.md',
+    'missing\\`name\\`.md', '<missing` name`.md>', '<missing`one(two.md>',
+    '<missing\\<name\\>`.md>',
+    'https://docs.example/missing`name`', 'https://docs.example/missing`name',
+    '<https://docs.example/missing`name`>', 'https://docs.example/one(two(three))`name`',
+  ].entries()) {
+    const target = destination.replace(/^<|>$/g, '').replace(/\\([`<>])/g, '$1');
+    for (const [kind, markdown] of [
+      ['inline', `[guide](${destination})`], ['image', `![guide](${destination})`],
+      ['reference', `[guide][ref]\n\n[ref]: ${destination}`],
+      ['collapsed', `[ref][]\n\n[ref]: ${destination}`],
+      ['shortcut_image', `![ref]\n\n[ref]: ${destination}`],
+    ]) cases.push([`destination_syntax_${index}_${kind}`, markdown, [[1, target]]]);
+  }
+  for (const [index, url] of [
+    'https://docs.example/missing`name`', 'https://docs.example/missing`name',
+    'https://docs.example/missing``name``', 'https://docs.example/`[part](one)`',
+  ].entries()) {
+    cases.push([`backtick_autolink_${index}`, `<${url}>\``, [[1, url]]]);
+    cases.push([`code_before_autolink_${index}`, `Text \`\`\`<${url}>\`\`\``, []]);
+  }
+  cases.push(['backtick_destination_then_link', `[first](missing\`.md) [second](${local}) \``,
+    [[1, 'missing`.md'], [1, local]]]);
+  cases.push(['backtick_destination_then_comment', `[first](missing<!--\`.md) <!-- [sample](ignored.md) --> [second](${local}) \``,
+    [[1, 'missing<!--`.md'], [1, local]]]);
+  cases.push(['backtick_reference_destinations', '[one] [two]\n\n[one]: missing`one.md\n[two]: missing`two.md',
+    [[1, 'missing`one.md'], [1, 'missing`two.md']]]);
+
+  for (const [name, markdown, expected] of cases) {
+    await t.test(name, (st) => {
+      const f = fixture(st, { 'README.md': markdown, 'present.md': '' });
+      const external = expected.filter(([, target]) => target.startsWith('https://'));
+      const relative = expected.filter(([, target]) => !target.startsWith('https://'));
+      // Match the checker contract for URI encoding without changing URI punctuation.
+      const urls = [...new Set(external.map(([, target]) => encodeURI(target)
+        .replaceAll('%5B', '[').replaceAll('%5D', ']')))];
+      for (const healthy of [false, true]) {
+        if (healthy) for (const [, target] of relative) write(f.repo, target, '');
+        const responses = Object.fromEntries(urls.map((url) => [url, healthy ? 200 : 404]));
+        const result = f.check(['--external'], responses);
+        const missing = healthy ? 0 : relative.filter(([, target]) => target !== 'present.md').length;
+        assert.equal(result.status, missing || (!healthy && external.length) ? 1 : 0, result.stderr);
+        for (const [key, value] of Object.entries({
+          links: expected.length, relative_missing: missing, relative_ok: relative.length - missing,
+          external_ok: healthy ? external.length : 0, external_404: healthy ? 0 : external.length,
+          unverified: 0,
+        })) assert.match(result.stdout, new RegExp(`${key}=${value}\\b`), result.stderr);
+        assert.deepEqual(result.calls.map((call) => call.url).sort(), [...urls].sort());
+        if (!healthy) {
+          for (const [line, target] of expected.filter(([, target]) => target !== 'present.md')) {
+            assert.ok(result.stderr.includes(`README.md:${line}: ${target} (`), result.stderr);
+          }
+        }
+      }
+    });
+  }
+});
+
 test('core manifest distributes the doc link checker and regression test', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'core-manifest.json'), 'utf8'));
   for (const file of ['tools/check-doc-links.sh', 'tools/lib/check_doc_links.py', 'tests/check-doc-links.test.js']) {

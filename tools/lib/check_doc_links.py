@@ -10,6 +10,7 @@ import html
 import http.client
 import json
 import re
+import string
 import subprocess
 import sys
 import unicodedata
@@ -19,27 +20,18 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlsplit
 from urllib.request import ProxyHandler, Request, build_opener
 
-DESTINATION = r'<([^<>\n]*)>|((?:\\.|[^\\\s()]|\([^()\n]*\))+)'
 # Labels may wrap within a paragraph, but cannot span blank lines.
 LABEL_CHARACTER = r'(?:\\.|[^\[\]\\\n]|\n(?![ \t]*\n))'
-LABEL_TEXT = r'(?:' + LABEL_CHARACTER + r'|\[' + LABEL_CHARACTER + r'*\])'
-LABEL = re.compile(r'(?<!\\)(?:\\\\)*\[' + LABEL_TEXT + r'*\]$')
-TITLE = r'''"(?:\\.|[^"\\\n]|\n(?![ \t]*\n))*"|'(?:\\.|[^'\\\n]|\n(?![ \t]*\n))*'|\((?:\\.|[^()\\\n]|\n(?![ \t]*\n))*\)'''
-INLINE = re.compile(r'\]\(\s*(?:' + DESTINATION + r')(?:\s+(?:' + TITLE + r'))?\s*\)')
-DEFINITION = re.compile(r'^ {0,3}\[([^\]\n]+)\]:[ \t]*(?:\n[ \t]*)?(?:' + DESTINATION +
-                        r')(?:(?:[ \t]+(?:\n[ \t]*)?|\n[ \t]*)(?:' + TITLE + r'))?[ \t]*$', re.M)
-REFERENCE_SYNTAX = r'\[(' + LABEL_TEXT + r'+)\](?:\[([^\]\n]*)\])?'
-REFERENCE = re.compile(r'(?<!\\)(?:\\\\)*' + REFERENCE_SYNTAX)
-IMAGE_REFERENCE = re.compile(r'(?<!\\)!' + REFERENCE_SYNTAX)
+REFERENCE_LABEL = re.compile(r'\[(' + LABEL_CHARACTER + r'{0,999})\]')
+DEFINITION_START = re.compile(r'^ {0,3}(?=\[)', re.M)
+SPACE = re.compile(r'[ \t]*(?:\n[ \t]*)?')
+LINE_END = re.compile(r'[ \t]*(?=\n|\Z)')
+BACKTICKS = re.compile(r'`+')
 AUTOLINK = re.compile(r'<(https?://[^\s<>]+)>')
 HTTP_URL = re.compile(r'''https?://[^\s<>`"'\[\]|）】」』、。]+''')
 LIST_MARKER = re.compile(r'^ {0,3}(?:[-+*]|\d{1,9}[.)])( +|$)')
 QUOTE_MARKER = re.compile(r'^ {0,3}> ?')
 FENCE = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
-# Limit code spans to a line so delimiters never pair across block boundaries.
-# Paired backslashes leave an opener active; backslashes inside a span are literal.
-CODE_SPAN = re.compile(r'(?<!\\)(?:\\\\)*(?<!`)(`+)(?!`)[^\n]*?(?<!`)\1(?!`)')
-INLINE_IGNORED = re.compile(CODE_SPAN.pattern + r'|(?<!\\)(?:\\\\)*<!--[\s\S]*?-->')
 BLOCK_END = re.compile(r'^ {0,3}(?:#{1,6}(?:\s|$)|(?:=+|-+)\s*$|'
                        r'(?:\*\s*){3,}$|(?:_\s*){3,}$|(?:-\s*){3,}$)')
 
@@ -60,9 +52,172 @@ def mask_ranges(text, ranges, mask=blank):
     return ''.join(masked)
 
 
+def escaped(text, index):
+    start = index
+    while start and text[start - 1] == '\\':
+        start -= 1
+    return (index - start) % 2 == 1
+
+
+def code_span_end(text, start):
+    """Read a delimiter run; an unmatched run remains literal on this line."""
+    opener = BACKTICKS.match(text, start)
+    line_end = text.find('\n', opener.end())
+    for closer in BACKTICKS.finditer(text, opener.end(), len(text) if line_end < 0 else line_end):
+        # Backslashes inside code spans are literal, including before the closer.
+        if len(closer[0]) == len(opener[0]):
+            return closer.end()
+    return opener.end()
+
+
+def read_destination(text, start):
+    """Read CommonMark destinations without interpreting their inline contents."""
+    angle = text[start:start + 1] == '<'
+    index, depth = start + int(angle), 0
+    while index < len(text):
+        char = text[index]
+        if char == '\\' and text[index + 1:index + 2] in string.punctuation and index + 1 < len(text):
+            index += 2
+            continue
+        if angle:
+            if char == '>':
+                return text[start + 1:index], index + 1
+            if char in '<\n\r':
+                return None
+        elif ord(char) <= 32 or ord(char) == 127:
+            break
+        elif char == '(':
+            depth += 1
+        elif char == ')':
+            if not depth:
+                break
+            depth -= 1
+        index += 1
+    if not angle and not depth and index > start:
+        return text[start:index], index
+    return None
+
+
+def read_title(text, start):
+    delimiter = text[start:start + 1]
+    if delimiter not in ('"', "'", '('):
+        return None
+    closer = ')' if delimiter == '(' else delimiter
+    index = start + 1
+    while index < len(text):
+        char = text[index]
+        if escaped(text, index) and char in string.punctuation:
+            index += 1
+            continue
+        if char == closer:
+            return index + 1
+        if (delimiter == '(' and char == '(') or (char == '\n' and re.match(r'\n[ \t]*\n', text[index:])):
+            return None
+        index += 1
+    return None
+
+
+def read_inline(text, start):
+    if text[start:start + 1] != '(':
+        return None
+    position = SPACE.match(text, start + 1).end()
+    if text[position:position + 1] == ')':
+        return '', position + 1
+    destination = read_destination(text, position)
+    if destination:
+        target, end = destination
+        following = SPACE.match(text, end).end()
+        if following > end:
+            title_end = read_title(text, following)
+            if title_end is not None:
+                following = SPACE.match(text, title_end).end()
+        if text[following:following + 1] == ')':
+            return target, following + 1
+    # A title may appear without a destination.
+    title_end = read_title(text, position)
+    if title_end is not None:
+        end = SPACE.match(text, title_end).end()
+        if text[end:end + 1] == ')':
+            return '', end + 1
+    return None
+
+
+def normalize_label(label):
+    return ' '.join(label.split()).casefold()
+
+
+def read_definition(text, start):
+    label = REFERENCE_LABEL.match(text, start)
+    if not label or not normalize_label(label[1]) or text[label.end():label.end() + 1] != ':':
+        return None
+    destination = read_destination(text, SPACE.match(text, label.end() + 1).end())
+    if not destination:
+        return None
+    target, end = destination
+    following = SPACE.match(text, end).end()
+    title_end = read_title(text, following) if following > end else None
+    if title_end is not None and (ending := LINE_END.match(text, title_end)):
+        return normalize_label(label[1]), target, ending.end()
+    if ending := LINE_END.match(text, end):
+        return normalize_label(label[1]), target, ending.end()
+    return None
+
+
+def read_link_text(text, start):
+    index, depth = start + 1, 1
+    while index < len(text):
+        char = text[index]
+        if escaped(text, index):
+            index += 1
+            continue
+        if char == '\n' and re.match(r'\n[ \t]*\n', text[index:]):
+            return None
+        if char == '`':
+            index = code_span_end(text, index)
+            continue
+        if text.startswith('<!--', index):
+            end = text.find('-->', index + 4)
+            if end >= 0:
+                index = end + 3
+                continue
+        if char == '<' and (autolink := AUTOLINK.match(text, index)):
+            index = autolink.end()
+            continue
+        if char == '[':
+            depth += 1
+        elif char == ']':
+            depth -= 1
+            if not depth:
+                return index
+            # Nested image destinations may themselves contain brackets.
+            inline = read_inline(text, index + 1)
+            if inline:
+                index = inline[1]
+                continue
+        index += 1
+    return None
+
+
+def read_link(text, start, definitions):
+    bracket = start + int(text.startswith('![', start))
+    end = read_link_text(text, bracket)
+    if end is None:
+        return None
+    inline = read_inline(text, end + 1)
+    if inline:
+        return inline[0], inline[1], bracket + 1, end
+    reference = REFERENCE_LABEL.match(text, end + 1)
+    label = reference[1] if reference and reference[1] else text[bracket + 1:end]
+    target = definitions.get(normalize_label(label))
+    if target is not None:
+        return target, reference.end() if reference else end + 1, bracket + 1, end
+    return None
+
+
 def prose(source):
     fence, lines, containers, paragraph = None, [], [], False
     offset, hidden_until, code_until = 0, 0, 0
+    destinations = {}
     for line in source.splitlines(keepends=True):
         start, offset = offset, offset + len(line)
         hidden = max(0, hidden_until - start)
@@ -119,18 +274,31 @@ def prose(source):
             code_until = 0
         else:
             block_end = BLOCK_END.match(content)
-            # Mask comments in source order, keeping code-span delimiters literal.
-            # Defer code-span masking until block boundaries have been processed.
+            # Only comments are hidden here. Consume complete destinations before
+            # considering code or comment syntax within them.
             if re.match(r'^ {0,3}<!--', content):
                 code_until = 0
-            for match in INLINE_IGNORED.finditer(source, max(start, hidden_until, code_until)):
-                if match.start() >= offset:
-                    break
-                if match[1] is not None:
-                    code_until = match.end()
+            index = max(start, hidden_until, code_until)
+            while index < offset:
+                if escaped(source, index):
+                    index += 1
                     continue
-                hidden_until = match.end()
-                line = mask_ranges(line, [(match.start() - start, min(len(line), match.end() - start))], blank_comment)
+                if index in destinations:
+                    code_until = destinations.pop(index)
+                elif source[index] == '`':
+                    code_until = code_span_end(source, index)
+                elif source[index] == '[' and (definition := read_definition(source, index)):
+                    code_until = definition[2]
+                elif source[index] == '[' and (link := read_link(source, index, {})):
+                    # Comments inside labels can contain block markers. Keep
+                    # scanning the label and skip its destination and title.
+                    destinations[link[3] + 1] = link[1]
+                elif source[index] == '<' and (autolink := AUTOLINK.match(source, index)):
+                    code_until = autolink.end()
+                elif source.startswith('<!--', index) and (end := source.find('-->', index + 4)) >= 0:
+                    hidden_until = end + 3
+                    line = mask_ranges(line, [(index - start, min(len(line), hidden_until - start))], blank_comment)
+                index = max(index + 1, code_until, hidden_until)
             # Strip container columns without expanding tabs inside destinations.
             prefix = len(expanded) - len(content)
             column, index = 0, 0
@@ -180,82 +348,82 @@ def closing_emphasis(text, end, protected_ranges):
 
 
 def extract_links(source):
-    original, links, definitions = prose(source), [], {}
-    text = CODE_SPAN.sub(lambda match: blank(match[0]), original)
+    text, definitions, definition_ends = prose(source), {}, {}
+    for match in DEFINITION_START.finditer(text):
+        definition = read_definition(text, match.end())
+        if definition:
+            label, target, end = definition
+            definitions.setdefault(label, target)
+            definition_ends[match.start()] = end
 
-    def normalize_label(match, group=1):
-        # Masks select link syntax; reference identity uses the original label.
-        start, end = match.span(group)
-        return ' '.join(original[start:end].split()).casefold()
+    links, protected_ranges = [], list(definition_ends.items())
 
-    for match in DEFINITION.finditer(text):
-        definitions.setdefault(normalize_label(match), match[2] if match[2] is not None else match[3])
-    text = DEFINITION.sub(lambda match: blank(match[0]), text)
-    emphasis_text = text
-    angle_ranges = [match.span() for match in AUTOLINK.finditer(text)]
-    inline_ranges, inline_destinations, inline_labels = [], [], set()
-    for match in INLINE.finditer(text):
-        label = LABEL.search(text[:match.start() + 1])
-        if label and not any(start <= label.start() < end for start, end in angle_ranges):
-            links.append((label.start(), match[1] if match[1] is not None else match[2]))
-            inline_ranges.append((label.start(), match.end()))
-            inline_destinations.append((match.start() + 1, match.end()))
-            inline_labels.add(label.start())
-    text = mask_ranges(text, inline_ranges)
-    autolink_ranges = []
-    for match in AUTOLINK.finditer(text):
-        links.append((match.start(), match[1]))
-        autolink_ranges.append(match.span())
-    text = mask_ranges(text, autolink_ranges)
-    reference_ranges, reference_links = [], set()
-    for match in REFERENCE.finditer(text):
-        if match[2] is None and text[match.end():match.end() + 1] == '(':
-            continue
-        target = definitions.get(normalize_label(match, 2 if match[2] else 1))
-        if target is not None:
-            reference_links.add((match.start(), target))
-            reference_ranges.append(match.span())
-    # Reference images inside link labels still have destinations of their own.
-    image_text = mask_ranges(emphasis_text, inline_destinations + autolink_ranges)
-    for match in IMAGE_REFERENCE.finditer(image_text):
-        if match.start() + 1 in inline_labels:
-            continue
-        target = definitions.get(normalize_label(match, 2 if match[2] else 1))
-        if target is not None:
-            reference_links.add((match.start() + 1, target))
-            reference_ranges.append(match.span())
-    links.extend(reference_links)
-    text = mask_ranges(text, reference_ranges)
-    protected_ranges = inline_ranges + autolink_ranges + reference_ranges
-    for match in HTTP_URL.finditer(text):
-        # Only paired wrapping markers are Markdown; URL suffixes may contain _ or ~.
-        closing = closing_emphasis(emphasis_text, match.start(), protected_ranges)
-        target = match[0]
-        while True:
-            trimmed = target.rstrip('.,;:!?')
-            if closing and trimmed.endswith(closing):
-                trimmed = trimmed[:-len(closing)]
-                closing = ''
-            elif closing:
-                suffix = re.search(r'[*_~]+\Z', trimmed)
-                if suffix and closing.startswith(suffix[0]):
-                    trimmed = trimmed[:-len(suffix[0])]
-                    closing = ''
-            for left, right in [('(', ')'), ('{', '}')]:
-                if trimmed.endswith(right) and trimmed.count(right) > trimmed.count(left):
-                    trimmed = trimmed[:-1]
-            if trimmed == target:
-                break
-            target = trimmed
-        links.append((match.start(), target))
-    autolink_offsets = {start for start, _ in autolink_ranges}
-    for offset, target in sorted(links):
+    def scan(start, end, images_only=False):
+        # Scan left to right. A consumed destination or code span is never
+        # reparsed as another kind of inline syntax.
+        index = start
+        while index < end:
+            if index in definition_ends:
+                index = definition_ends[index]
+                continue
+            if escaped(text, index):
+                index += 1
+                continue
+            char = text[index]
+            stop = index + 1
+            if char == '`':
+                stop = code_span_end(text, index)
+            elif text.startswith('<!--', index) and (closing := text.find('-->', index + 4)) >= 0:
+                stop = closing + 3
+            elif char == '<' and (autolink := AUTOLINK.match(text, index)):
+                stop = autolink.end()
+                if not images_only:
+                    links.append((index, autolink[1], True))
+            elif (text.startswith('![', index) or (char == '[' and not images_only)) and (
+                    link := read_link(text, index, definitions)):
+                target, stop, label_start, label_end = link
+                links.append((index, target, False))
+                # Images embedded in link labels have their own destinations.
+                scan(label_start, label_end, images_only=True)
+            elif not images_only and (url := HTTP_URL.match(text, index)):
+                target = trim_bare_url(url[0], closing_emphasis(text, index, protected_ranges))
+                links.append((index, target, False))
+                # Leave closing emphasis in the prose for subsequent URLs.
+                stop = index + len(target)
+            else:
+                index += 1
+                continue
+            protected_ranges.append((index, stop))
+            index = stop
+
+    scan(0, len(text))
+    for offset, target, autolink in sorted(links):
         # Backslashes in autolink destinations are literal.
-        if offset not in autolink_offsets:
+        if not autolink:
             target = re.sub(r'\\([!"#$%&\'()*+,\-./:;<=>?@\[\]\\^_`{|}~])', r'\1', target)
         target = re.sub(r'&(?:#\d+|#x[\da-fA-F]+|[a-zA-Z][\da-zA-Z]*);',
                         lambda match: html.unescape(match[0]), target)
         yield text.count('\n', 0, offset) + 1, target
+
+
+def trim_bare_url(target, closing):
+    # Only paired wrapping markers are Markdown; URL suffixes may contain _ or ~.
+    while True:
+        trimmed = target.rstrip('.,;:!?')
+        if closing and trimmed.endswith(closing):
+            trimmed = trimmed[:-len(closing)]
+            closing = ''
+        elif closing:
+            suffix = re.search(r'[*_~]+\Z', trimmed)
+            if suffix and closing.startswith(suffix[0]):
+                trimmed = trimmed[:-len(suffix[0])]
+                closing = ''
+        for left, right in [('(', ')'), ('{', '}')]:
+            if trimmed.endswith(right) and trimmed.count(right) > trimmed.count(left):
+                trimmed = trimmed[:-1]
+        if trimmed == target:
+            return target
+        target = trimmed
 
 
 def check_http(url, opener):
