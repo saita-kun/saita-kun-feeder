@@ -117,3 +117,8 @@
 2. `schemas/feed-meta.schema.json` / `schemas/feed-subsidy.schema.json`（JSON Schema draft 2020-12）
 3. `tests/fixtures/feed-sample/`（準拠サンプル。sentinel ケースを網羅）
 4. `tools/check-feed-contract.sh`（準拠チェッカ。**producer の CI に組み込むこと**）
+
+## 9. 関連課題
+
+- 禁止列検査の対応状況: [canonical repo の Issue #11](https://github.com/saita-kun/saita-kun-feeder/issues/11)
+- data ファイルの世代 URL 化の検討: [canonical repo の Issue #16](https://github.com/saita-kun/saita-kun-feeder/issues/16)
