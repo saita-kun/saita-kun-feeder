@@ -86,6 +86,7 @@
     "tests/local-delivery.test.js",
     "tests/match-predicate-golden.test.js",
     "tests/runner-args.test.js",
+    "tests/setup-state.test.js",
     "tests/update-core.test.js",
     "tools/check-channels.sh",
     "tools/check-feed-contract.sh",
@@ -97,6 +98,7 @@
     "tools/lib/check_feed_contract.py",
     "tools/lib/check_ledger.py",
     "tools/lib/check_profile.js",
+    "tools/lib/setup_state.js",
     "tools/lib/update_core.py",
     "tools/update-core.sh",
     "tools/validate.sh"

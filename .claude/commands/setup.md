@@ -40,9 +40,17 @@ description: 環境セルフチェック、private repo 確認、利用規約の
 
 `CLAUDE.md` の「応援の確認」節に従って、スターとフォローで応援するかを一度だけ確認します。gh 未認証ならスキップします。同意の有無にかかわらずセットアップは通常どおり進めます。
 
-確認の前に `input/setup-state.json` の `support_prompt.asked_at` を読み、**値があればこの節を丸ごとスキップします**（一度断られた話題を再提示しないため）。
+確認や応援 API 呼び出しの前に、repo ルートで `node tools/lib/setup_state.js support-status` を実行します。`input/setup-state.json` の `support_prompt.asked_at` に値があれば `skip` を返すので、**この節を丸ごとスキップします**。`ask` の場合のみ未確認として進みます。非ゼロ終了なら読込失敗です。未確認扱いにせず、この節を止めて既存ファイルを保持したまま原因を確認します。
 
-確認を出した場合は、**その場で** `input/setup-state.json` に `support_prompt` を書き込みます（規約同意の記録とは独立して保存します。ファイルが無ければ `{"setup_state_version": 1, "support_prompt": {...}}` だけの状態で作成し、既存フィールドがあれば保持したままマージします）。ここで保存しておかないと、利用者が規約同意まで進まずに終了した場合に記録が残らず、次回また同じ話題を出してしまいます。
+確認を出した場合は、**その場で**次のマージ処理で `support_prompt` を保存します。日時は確認した時点の ISO8601 に置き換え、`declined` は断られた・返答が曖昧なら `true`、同意されたら `false` にします。規約同意の記録とは独立した保存なので、規約同意まで進まず終了しても次回の再提示を防げます。
+
+```bash
+node tools/lib/setup_state.js merge <<'JSON'
+{"support_prompt":{"asked_at":"<ISO8601 日時>","declined":true}}
+JSON
+```
+
+ヘルパーはファイルが無ければ新規作成し、`setup_state_version` が無い場合は `1` を補います。既存ファイルには入力したトップレベルのフィールドだけをマージし、省略した既存フィールドは保持します。成功は `setup-state: OK`（終了コード 0）で確認します。読込・JSON 解析・保存に失敗した場合は非ゼロ終了するので、保存済みとして進めず原因を確認します。ヘルパーに外部通信はありません。
 
 ## 3. 利用規約の同意確認
 
@@ -50,23 +58,24 @@ description: 環境セルフチェック、private repo 確認、利用規約の
   - **自社利用限定**（第 2 条）: 支援機関・代行業者がクライアント向けに使うことは禁止。利用者本人が自社のために使うかを確認します。
   - **収集なし**（第 3 条）: プロファイルも配信結果も外部送信されません。
   - 届く情報は「マッチ候補」であり、応募判断は公式の公募要領で行うこと。
-- 同意を確認できたら `input/setup-state.json` を書き込みます（同意がなければ同意記録を書かず、該当条項を案内して終了します。手順 2 で保存した `support_prompt` はその場合も消しません）。**書き込みは全文の上書きではなく既存フィールドを保持したマージ**で行います:
+- 同意を確認できたら、次の入力の日時・ハッシュを実値に置き換えて、手順 2 と同じ `node tools/lib/setup_state.js merge` で保存します（同意がなければ同意記録を書かず、該当条項を案内して終了します。手順 2 で保存した `support_prompt` はその場合も消しません）。**規約同意の入力には `support_prompt` を含めず、既存の値をヘルパーに保持させます**:
 
-```json
+```bash
+node tools/lib/setup_state.js merge <<'JSON'
 {
   "setup_state_version": 1,
   "setup_completed_at": "<ISO8601 日時>",
   "terms_sha256": "<TERMS.md の sha256>",
-  "data_policy_sha256": "<docs/data-policy.md の sha256>",
-  "support_prompt": { "asked_at": "<ISO8601 日時>", "declined": true }
+  "data_policy_sha256": "<docs/data-policy.md の sha256>"
 }
+JSON
 ```
 
 `support_prompt` は任意フィールドです（`declined` は断られた・返答が曖昧なら `true`、同意されたら `false`）。扱いは次の 3 つだけで、**一度書かれた `support_prompt` を消してはいけません**（消すと次回また勧誘が出ます）:
 
-- 今回の手順 2 で確認を出した → 今回の結果を書く
-- 既存の `input/setup-state.json` に `support_prompt` がある（＝以前に確認済みで、今回は手順 2 をスキップした） → **既存の値をそのまま引き継いで書き戻す**
-- 一度も確認を出しておらず既存値も無い（gh 未認証など） → キーごと省く
+- 今回の手順 2 で確認を出した → 手順 2 のマージ保存で今回の結果を記録済み。規約同意の入力には含めない
+- 既存の `input/setup-state.json` に `support_prompt` がある（＝以前に確認済みで、今回は手順 2 をスキップした） → 入力から省き、**既存の値をヘルパーがそのまま保持する**
+- 一度も確認を出しておらず既存値も無い（gh 未認証など） → 入力から省き、キーを新設しない
 
 このファイルは `.gitignore` 済みでローカル限定です。
 
