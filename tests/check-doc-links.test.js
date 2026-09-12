@@ -202,6 +202,34 @@ test('links_preserves_links_between_escaped_backticks', (t) => {
   assert.match(present.stdout, /relative_ok=1\b/);
 });
 
+test('links_ignores_escaped_opening_brackets', (t) => {
+  const f = fixture(t, { 'README.md': '' });
+  for (const backslashes of [1, 3]) {
+    write(f.repo, 'README.md', `${'\\'.repeat(backslashes)}[guide](missing.md)`);
+    const result = f.check();
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /links=0\b/);
+    assert.match(result.stdout, /relative_missing=0\b/);
+    assert.deepEqual(result.calls, []);
+  }
+});
+
+test('links_checks_opening_brackets_after_paired_backslashes', (t) => {
+  const f = fixture(t, { 'README.md': '', 'present.md': '' });
+  for (const backslashes of [2, 4]) {
+    for (const target of ['missing.md', 'present.md']) {
+      write(f.repo, 'README.md', `${'\\'.repeat(backslashes)}[guide](${target})`);
+      const result = f.check();
+      const missing = target === 'missing.md';
+      assert.equal(result.status, missing ? 1 : 0, result.stderr);
+      assert.match(result.stdout, /links=1\b/);
+      assert.match(result.stdout, new RegExp(`relative_${missing ? 'missing' : 'ok'}=1\\b`));
+      if (missing) assert.match(result.stderr, /README\.md:1: missing\.md/);
+      assert.deepEqual(result.calls, []);
+    }
+  }
+});
+
 test('links_preserves_distinct_reference_labels_with_code_spans', (t) => {
   const f = fixture(t, { 'README.md': '', 'present.md': '' });
   for (const [one, two] of [
@@ -379,6 +407,35 @@ test('links_masks_html_comments_and_preserves_line_numbers', (t) => {
     assert.match(label.stdout, /relative_missing=1\b/);
     assert.match(label.stderr, /README\.md:1: missing\.md/);
   }
+});
+
+test('links_distinguishes_escaped_html_comment_openers', (t) => {
+  const f = fixture(t, { 'README.md': '', 'present.md': '' });
+  for (const backslashes of [1, 3, 0, 2, 4]) {
+    for (const separator of [' ', '\n']) {
+      for (const target of ['missing.md', 'present.md']) {
+        write(f.repo, 'README.md', `${'\\'.repeat(backslashes)}<!--${separator}[guide](${target}) -->`);
+        const result = f.check();
+        const visible = backslashes % 2;
+        const missing = visible && target === 'missing.md';
+        assert.equal(result.status, missing ? 1 : 0, result.stderr);
+        assert.match(result.stdout, new RegExp(`links=${visible}\\b`));
+        assert.match(result.stdout, new RegExp(`relative_missing=${missing ? 1 : 0}\\b`));
+        assert.match(result.stdout, new RegExp(`relative_ok=${visible && !missing ? 1 : 0}\\b`));
+        if (missing) {
+          assert.match(result.stderr, new RegExp(`README\\.md:${separator === '\n' ? 2 : 1}: missing\\.md`));
+        }
+        assert.deepEqual(result.calls, []);
+      }
+    }
+  }
+
+  write(f.repo, 'README.md', String.raw`\<!-- [guide](missing.md) <!-- [sample](ignored.md) -->`);
+  const mixed = f.check();
+  assert.equal(mixed.status, 1, mixed.stderr);
+  assert.match(mixed.stdout, /links=1\b/);
+  assert.match(mixed.stdout, /relative_missing=1\b/);
+  assert.match(mixed.stderr, /README\.md:1: missing\.md/);
 });
 
 test('links_checks_inline_destinations_with_escaped_title_delimiters', (t) => {
@@ -604,6 +661,34 @@ test('links_preserves_brackets_in_angle_autolinks', (t) => {
       assert.match(result.stdout, new RegExp(`external_${status === 200 ? 'ok' : '404'}=1\\b`));
     }
   }
+});
+
+test('links_preserves_backslashes_in_angle_autolinks', (t) => {
+  const original = String.raw`https://docs.example/?find=\*`;
+  const encoded = 'https://docs.example/?find=%5C*';
+  const unescaped = 'https://docs.example/?find=*';
+  const f = fixture(t, { 'README.md': '' });
+  for (const [suffix, decodedSuffix] of [['', ''], ['&amp;mode=literal', '&mode=literal']]) {
+    write(f.repo, 'README.md', `<${original}${suffix}>`);
+    for (const [status, otherStatus] of [[404, 200], [200, 404]]) {
+      const result = f.check(['--external'], { [encoded + decodedSuffix]: status, [unescaped + decodedSuffix]: otherStatus });
+      assert.deepEqual(result.calls.map((call) => call.url), [encoded + decodedSuffix]);
+      assert.equal(result.calls[0].method, 'GET');
+      assert.equal(result.status, status === 200 ? 0 : 1, result.stderr);
+      assert.match(result.stdout, /links=1\b/);
+      assert.match(result.stdout, new RegExp(`external_404=${status === 404 ? 1 : 0}\\b`));
+      assert.match(result.stdout, new RegExp(`external_ok=${status === 200 ? 1 : 0}\\b`));
+      assert.match(result.stdout, /unverified=0\b/);
+      assert.ok((result.stdout + result.stderr).includes(`README.md:1: ${original}${decodedSuffix} (HTTP ${status})`));
+    }
+  }
+
+  write(f.repo, 'README.md', `[inline](${original})\n[reference][guide]\n\n[guide]: ${original}`);
+  const links = f.check(['--external'], { [encoded]: 404, [unescaped]: 200 });
+  assert.equal(links.status, 0, links.stderr);
+  assert.deepEqual(links.calls.map((call) => call.url), [unescaped]);
+  assert.match(links.stdout, /links=2\b/);
+  assert.match(links.stdout, /external_ok=2\b/);
 });
 
 test('links_separates_bare_url_emphasis_and_trailing_punctuation', (t) => {

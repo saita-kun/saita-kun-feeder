@@ -23,7 +23,7 @@ DESTINATION = r'<([^<>\n]*)>|((?:\\.|[^\\\s()]|\([^()\n]*\))+)'
 # Labels may wrap within a paragraph, but cannot span blank lines.
 LABEL_CHARACTER = r'(?:\\.|[^\[\]\\\n]|\n(?![ \t]*\n))'
 LABEL_TEXT = r'(?:' + LABEL_CHARACTER + r'|\[' + LABEL_CHARACTER + r'*\])'
-LABEL = re.compile(r'(?<!\\)\[' + LABEL_TEXT + r'*\]$')
+LABEL = re.compile(r'(?<!\\)(?:\\\\)*\[' + LABEL_TEXT + r'*\]$')
 TITLE = r'''"(?:\\.|[^"\\\n]|\n(?![ \t]*\n))*"|'(?:\\.|[^'\\\n]|\n(?![ \t]*\n))*'|\((?:\\.|[^()\\\n]|\n(?![ \t]*\n))*\)'''
 INLINE = re.compile(r'\]\(\s*(?:' + DESTINATION + r')(?:\s+(?:' + TITLE + r'))?\s*\)')
 DEFINITION = re.compile(r'^ {0,3}\[([^\]\n]+)\]:[ \t]*(?:\n[ \t]*)?(?:' + DESTINATION +
@@ -39,7 +39,7 @@ FENCE = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
 # Limit code spans to a line so delimiters never pair across block boundaries.
 # Paired backslashes leave an opener active; backslashes inside a span are literal.
 CODE_SPAN = re.compile(r'(?<!\\)(?:\\\\)*(?<!`)(`+)(?!`)[^\n]*?(?<!`)\1(?!`)')
-INLINE_IGNORED = re.compile(CODE_SPAN.pattern + r'|<!--[\s\S]*?-->')
+INLINE_IGNORED = re.compile(CODE_SPAN.pattern + r'|(?<!\\)(?:\\\\)*<!--[\s\S]*?-->')
 BLOCK_END = re.compile(r'^ {0,3}(?:#{1,6}(?:\s|$)|(?:=+|-+)\s*$|'
                        r'(?:\*\s*){3,}$|(?:_\s*){3,}$|(?:-\s*){3,}$)')
 
@@ -248,8 +248,11 @@ def extract_links(source):
                 break
             target = trimmed
         links.append((match.start(), target))
+    autolink_offsets = {start for start, _ in autolink_ranges}
     for offset, target in sorted(links):
-        target = re.sub(r'\\([!"#$%&\'()*+,\-./:;<=>?@\[\]\\^_`{|}~])', r'\1', target)
+        # Backslashes in autolink destinations are literal.
+        if offset not in autolink_offsets:
+            target = re.sub(r'\\([!"#$%&\'()*+,\-./:;<=>?@\[\]\\^_`{|}~])', r'\1', target)
         target = re.sub(r'&(?:#\d+|#x[\da-fA-F]+|[a-zA-Z][\da-zA-Z]*);',
                         lambda match: html.unescape(match[0]), target)
         yield text.count('\n', 0, offset) + 1, target
