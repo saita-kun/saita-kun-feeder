@@ -82,7 +82,7 @@ function runDeliver(args, timeZone) {
     {
       cwd: ROOT,
       encoding: 'utf8',
-      env: { ...process.env, TZ: timeZone },
+      env: { ...process.env, TZ: timeZone, SAITA_FEEDER_DRY_RUN: '0' },
     }
   );
   assert.strictEqual(res.error, undefined);

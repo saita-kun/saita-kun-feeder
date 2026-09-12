@@ -10,8 +10,8 @@
  * runs for tests). Without it, wall-clock time is used.
  * Reference dates default to the fixed Asia/Tokyo calendar day; wall-clock
  * timestamps still use the actual instant.
- * --dry-run: renders digests and invokes adapters with SAITA_FEEDER_DRY_RUN=1;
- * never mutates the ledger.
+ * --dry-run or SAITA_FEEDER_DRY_RUN=1: renders digests and invokes adapters
+ * with SAITA_FEEDER_DRY_RUN=1; never mutates the ledger.
  *
  * Exit codes: 0 ok / 1 fatal / 2 completed with some failed sends.
  */
@@ -100,7 +100,7 @@ function runChannelAdapter(channelName, digestMdPath, digestJson, dryRun) {
   }
   const res = spawnSync(sendPath, [digestMdPath], {
     input: `${JSON.stringify(digestJson, null, 2)}\n`,
-    env: { ...process.env, ...(dryRun ? { SAITA_FEEDER_DRY_RUN: '1' } : {}) },
+    env: { ...process.env, SAITA_FEEDER_DRY_RUN: dryRun ? '1' : '0' },
     timeout: CHANNEL_TIMEOUT_MS,
     encoding: 'utf8',
   });
@@ -112,6 +112,7 @@ function runChannelAdapter(channelName, digestMdPath, digestJson, dryRun) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  const effectiveDryRun = args.dryRun || process.env.SAITA_FEEDER_DRY_RUN === '1';
 
   const profilePath = args.profile || path.join(ROOT, 'profile', 'delivery-profile.json');
   const ledgerPath = args.ledger || path.join(ROOT, 'state', 'notified.json');
@@ -152,7 +153,7 @@ async function main() {
     dailyCap: profile.daily_cap,
   });
 
-  const channels = resolveChannels(profile, args.dryRun);
+  const channels = resolveChannels(profile, effectiveDryRun);
   fs.mkdirSync(outDir, { recursive: true });
 
   let anyFailed = false;
@@ -190,12 +191,12 @@ async function main() {
     fs.writeFileSync(`${base}.md`, digest.markdown);
     fs.writeFileSync(`${base}.json`, `${JSON.stringify(digest.json, null, 2)}\n`);
 
-    const result = runChannelAdapter(channel.name, `${base}.md`, digest.json, args.dryRun);
+    const result = runChannelAdapter(channel.name, `${base}.md`, digest.json, effectiveDryRun);
     console.log(
       `[${channel.name}] ${result.ok ? '送信成功' : `送信失敗: ${result.error}`}（${items.length} 件、繰り越し ${dropped} 件）`
     );
 
-    if (!args.dryRun) {
+    if (!effectiveDryRun) {
       for (const { subsidy, notifiedAs } of items) {
         const plan = planById.get(subsidy.id);
         ledgerLib.recordResult(ledger, subsidy, channel.name, {
@@ -209,7 +210,7 @@ async function main() {
     if (!result.ok) anyFailed = true;
   }
 
-  if (!args.dryRun) ledgerLib.saveLedger(ledgerPath, ledger);
+  if (!effectiveDryRun) ledgerLib.saveLedger(ledgerPath, ledger);
   for (const w of warnings) console.log(`警告: ${w}`);
 
   process.exitCode = anyFailed ? 2 : 0;

@@ -25,13 +25,21 @@ send <digest.md のパス>
 - **argv[1]**: 描画済みダイジェスト（markdown）のファイルパス。
 - **stdin**: ダイジェストの機械可読 JSON（`lib/digest.js` の `json` 出力。`digest_version: 1`）。UTF-8、2 スペースインデントで整形し、末尾に LF を 1 個付ける（`JSON.stringify(digestJson, null, 2) + '\n'`）。保存 JSON・checker の golden fixture と同じ形式を、通常実行・dry-run の両方で渡す。
   アダプタは stdin を EOF まで読み、複数行にわたる JSON 全体を解析すること。
-- **exit 0 = 配信成功／非 0 = 失敗**。失敗はランナーが台帳に `failed` として記録し、リトライ規約（30 分バックオフ・最大 3 回）を適用する。
+- **exit 0 = 配信成功／非 0 = 失敗**。通常実行時の失敗はランナーが台帳に `failed` として記録し、リトライ規約（30 分バックオフ・最大 3 回）を適用する。
 - タイムアウト: 60 秒。超過は失敗扱い。
 - 冪等性（同じ補助金を二度送らない）は**ランナー側の台帳が担保**する。アダプタは渡されたものを送るだけでよい。
 
 ## 3. SAITA_FEEDER_DRY_RUN（MUST）
 
-環境変数 `SAITA_FEEDER_DRY_RUN=1` がセットされている場合、アダプタは**ネットワーク副作用を一切起こさず**、「何をするつもりか」を stdout に出力して exit 0 しなければならない。`/deliver --dry-run` は通常実行と同じく profile の enabled channels を解決し、その各アダプタをこのモードで起動する。有効チャネルがない場合のみ `dryrun` チャネルに fallback する。`tools/check-channels.sh` もこのモードで起動する。
+環境変数 `SAITA_FEEDER_DRY_RUN=1` がセットされている場合、アダプタは**ネットワーク副作用を一切起こさず**、「何をするつもりか」を stdout に出力して exit 0 しなければならない。ランナーは **CLI の `--dry-run` または親環境の `SAITA_FEEDER_DRY_RUN` が厳密に文字列 `"1"`** のときに dry-run とし、チャネル解決・アダプタ起動・台帳の記録と保存に同じ実効状態を使用する。
+
+| CLI の `--dry-run` | 親環境の `SAITA_FEEDER_DRY_RUN` | 実効状態 | 子アダプタへ渡す値 | 台帳 |
+|---|---|---|---|---|
+| あり | 任意（未設定を含む） | dry-run | `"1"` | 記録・保存しない |
+| なし | `"1"` | dry-run | `"1"` | 記録・保存しない |
+| なし | 未設定・`"0"`・その他（`"true"` 等） | 通常実行 | `"0"` | 通常どおり記録・保存 |
+
+dry-run では既存台帳を変更せず、新規台帳も作成しない。CLI 指定・環境変数指定のどちらでも、通常実行と同じく profile の enabled channels を解決し、その各アダプタをこのモードで起動する。有効チャネルがない場合のみ `dryrun` チャネルに fallback する。`tools/check-channels.sh` もこのモードで起動する。
 
 ## 4. 秘匿値の扱い（MUST）
 

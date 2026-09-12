@@ -62,6 +62,7 @@
     "tests/channel-stdin.test.js",
     "tests/check-feed-contract.test.js",
     "tests/check-profile.test.js",
+    "tests/deliver-dry-run-env.test.js",
     "tests/e2e-deliver.test.js",
     "tests/e2e-isolation.test.js",
     "tests/feed-client.test.js",
