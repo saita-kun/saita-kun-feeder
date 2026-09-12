@@ -43,6 +43,7 @@ description: 通知の届け先（Slack・メール・LINE 等）をヒアリン
      - `gh` があれば `gh secret set <NAME>`（値の入力はプロンプトに直接。チャットに貼らせない）
      - `gh` が無ければブラウザで repo の **Settings > Secrets and variables > Actions > New repository secret** に `<NAME>` と値を登録してもらう
   2. `.github/workflows/deliver.yml` の Deliver ステップに `env:` を追記し、その Secret を変数として渡す（コメントアウトされた例が同ファイルにあります）。この追記はアダプタとセットで行います。
+     - 追記後に `bash tools/check-workflows.sh` で YAML と Actions 構造を静的検証します。actionlint 1.7.12 の準備方法は `CONTRIBUTING.md` を参照してください。
 
 ## 4. ローカルのテスト（3 段階）
 
@@ -64,7 +65,7 @@ description: 通知の届け先（Slack・メール・LINE 等）をヒアリン
 
 ## 6. 自動配信の疎通確認（**コミットと push の後に行う**）
 
-`tools/validate.sh` は `deliver.yml` を一切検査しないため、手順 3 の `env:` 追記が正しいことを機械的に確かめられるのは GitHub Actions での実行だけです（追記が壊れていても日次配信は無言で止まります）。ただし **workflow_dispatch は GitHub 上のコミットを checkout して走る**ので、次の順序を守らないと「緑」に意味がありません。
+`tools/validate.sh` は全 workflow の YAML と Actions 構造を静的検証します。手順 3 の `env:` 追記後、コミット前に実行して構文の不備を確認してください。有効チャネルの `requires_env` と変数束縛の照合、Secret の登録状況、`env` の実行時解決、通知の実到達はこの静的検証の対象外です。**workflow_dispatch は GitHub 上のコミットを checkout して走る**ので、実行時の確認では次の順序を守ります。
 
 1. 手順 5 の有効化（`profile.channels`）とアダプタ・`deliver.yml` の変更を**コミットして push する**。push 前に実行しても、走るのは変更前の `deliver.yml` とチャネル未有効のプロファイル（`ready=false` なら全ステップがスキップされて無条件に緑）です。
 2. Secret が登録済みであることを確認する（`gh secret list`、または Settings > Secrets and variables > Actions で名前が見えること）。

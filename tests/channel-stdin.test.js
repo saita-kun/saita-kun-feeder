@@ -159,6 +159,33 @@ test('normal_and_dry_run_use_the_same_stdin', (t) => {
   assert.ok(!fs.existsSync(dry.ledger), 'dry-run must not create a ledger');
 });
 
+test('bundled_dryrun_consumes_complete_stdin', (t) => {
+  const repo = createRepo(t);
+  const send = path.join(repo, 'channels/dryrun/send');
+  fs.copyFileSync(path.join(ROOT, 'channels/dryrun/send'), send);
+  const markdownPath = path.join(repo, GOLDEN_JSON.replace(/\.json$/, '.md'));
+  const markdown = fs.readFileSync(markdownPath, 'utf8');
+  const digest = JSON.parse(fs.readFileSync(path.join(repo, GOLDEN_JSON), 'utf8'));
+  // Exceed the pipe buffer so successful delivery requires reading all stdin.
+  digest.warnings.push('fixture '.repeat(128 * 1024));
+  const input = `${JSON.stringify(digest, null, 2)}\n`;
+  for (const dryRun of [false, true]) {
+    const result = spawnSync(send, [markdownPath], {
+      cwd: repo, input, encoding: 'utf8', timeout: 10000,
+      env: { ...process.env, SAITA_FEEDER_DRY_RUN: dryRun ? '1' : '' },
+    });
+    assert.ifError(result.error);
+    assert.strictEqual(result.signal, null, result.stderr);
+    assert.strictEqual(result.status, 0, result.stderr);
+    if (dryRun) {
+      assert.match(result.stdout, /SAITA_FEEDER_DRY_RUN=1/);
+      assert.ok(result.stdout.endsWith(markdown), 'dry-run must preserve the Markdown');
+    } else {
+      assert.strictEqual(result.stdout, markdown);
+    }
+  }
+});
+
 test('stdin_preserves_json_and_ledger_semantics', (t) => {
   const repo = createRepo(t);
   const golden = JSON.parse(fs.readFileSync(path.join(repo, GOLDEN_JSON)));

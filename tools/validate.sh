@@ -29,11 +29,12 @@ for p in missing:
 sys.exit(1 if missing else 0)
 EOF
 
-# 2. Contract / profile / channels / ledger gates
+# 2. Contract / profile / channels / ledger / workflow gates
 step "check-feed-contract" tools/check-feed-contract.sh
 step "check-profile" tools/check-profile.sh
 step "check-channels" tools/check-channels.sh
 step "check-ledger" tools/check-ledger.sh
+step "check-workflows" tools/check-workflows.sh
 
 # 3. Test suite (golden matcher fixtures + E2E)
 step "node --test" node --test
