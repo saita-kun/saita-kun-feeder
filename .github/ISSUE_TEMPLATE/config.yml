@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: "非公開のセキュリティ報告"
+    url: https://github.com/saita-kun/saita-kun-feeder/security/advisories/new
+    about: "SECURITY.md に従い、セキュリティ上の問題は公開 Issue に書かず、こちらへ報告してください。"
