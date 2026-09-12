@@ -21,4 +21,4 @@
 - 申請できるのは**本人または掲載の権限を持つ担当者**のみです
 - 会社プロファイルの中身・補助金の採否・申請内容・具体的な数値は**書かないでください**（機密・再特定リスク）
 - 掲載は本プロジェクトによる公認・提携・推薦を意味しません
-- 削除依頼は同じ Issue フォームから受け付けます。ただし GitHub の公開履歴・フォーク・外部キャッシュからの完全削除は保証できません
+- 削除依頼は canonical repo の専用 Issue フォーム（[adopter-removal](https://github.com/saita-kun/saita-kun-feeder/issues/new?template=adopter-removal.yml)）から受け付けます。ただし GitHub の公開履歴・フォーク・外部キャッシュからの完全削除は保証できません

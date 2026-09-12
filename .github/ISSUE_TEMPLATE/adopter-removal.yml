@@ -1,0 +1,41 @@
+name: "ADOPTERS 削除依頼"
+description: "ADOPTERS.md の掲載を撤回するためのフォームです。canonical repo（saita-kun/saita-kun-feeder）でのみ受け付けます。"
+title: "[adopter] 削除依頼"
+labels: ["adopters"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        - このフォームは **canonical repo（saita-kun/saita-kun-feeder）でのみ受け付けます**。複製した repo で開いている場合は、本家 <https://github.com/saita-kun/saita-kun-feeder/issues/new?template=adopter-removal.yml> から依頼してください。
+        - 投稿した GitHub アカウントと入力内容は公開されます。機密情報・個人情報は書かないでください。
+        - 削除の対象は ADOPTERS.md の掲載です。GitHub の公開履歴・フォーク・外部キャッシュからの完全削除は保証できません。
+  - type: input
+    id: display-name
+    attributes:
+      label: 掲載名
+      description: ADOPTERS.md に掲載されている、削除を希望する名称を入力してください。
+    validations:
+      required: true
+  - type: dropdown
+    id: requester-role
+    attributes:
+      label: 申請者の立場
+      options:
+        - 本人
+        - 掲載の権限を持つ担当者
+    validations:
+      required: true
+  - type: input
+    id: original-issue-url
+    attributes:
+      label: 元 Issue URL（任意）
+      description: 掲載申告時の Issue URL がわかる場合に入力してください。
+    validations:
+      required: false
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: 補足（任意）
+      description: 削除対象の特定に必要な補足があれば入力してください。機密情報・個人情報は書かないでください。
+    validations:
+      required: false
