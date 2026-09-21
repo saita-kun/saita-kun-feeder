@@ -91,6 +91,7 @@
     "tests/match-predicate-golden.test.js",
     "tests/runner-args.test.js",
     "tests/runner-lock.test.js",
+    "tests/select-order.test.js",
     "tests/setup-state.test.js",
     "tests/update-core.test.js",
     "tests/update-core-feedback.test.js",
