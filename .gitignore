@@ -7,6 +7,9 @@ output/
 # Feed cache (last known-good snapshot, machine-local)
 state/cache/
 
+# Machine-local ledger locks (including locks left after an interrupted run)
+state/*.lock/
+
 # OS / editor noise
 .DS_Store
 node_modules/
