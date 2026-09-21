@@ -5,8 +5,9 @@ const {
   AGNOSTIC_CATEGORY_KEYS, AGNOSTIC_CATEGORY_THRESHOLD,
   URGENT_DAYS, URGENT_WINDOW, URGENT_MIN_SLOTS,
   countIndustryFlags, isIndustryAgnostic, isSpecificIndustryMatch,
-  daysUntilDeadline, isUrgent, sortDeterministic, selectWithinBudget,
+  daysUntilDeadline, isUrgent, sortDeterministic, selectWithinBudget, createBudget,
 } = require('../lib/select');
+const { recordResult } = require('../lib/ledger');
 
 const TODAY = new Date('2026-09-19T00:00:00Z');
 const OPTIONS = { categories: ['it'], today: TODAY };
@@ -183,4 +184,135 @@ test('AC-6 numeric selection forwards categories and today unchanged', () => {
   const laterSelection = selectWithinBudget(candidates, 5, later).selected;
   assert.deepEqual(laterSelection, sortDeterministic(candidates, later).slice(0, 5));
   assert.notDeepEqual(laterSelection, ordered.slice(0, 5));
+});
+
+const SHARED_TODAY = new Date('2026-09-21T00:00:00Z');
+const SHARED_OPTIONS = { categories: ['it'], today: SHARED_TODAY };
+const SPECIFIC_IDS = ['s0', 's1', 's2', 's3', 's4', 's5'];
+
+function sharedCandidates(urgentCount = 4) {
+  return [
+    ...SPECIFIC_IDS.map((id) => row(id, '2026-11-01')),
+    ...Array.from({ length: urgentCount }, (_, i) => row(`u${i}`, '2026-09-25', INDUSTRIES)),
+  ];
+}
+
+function sharedBudget(countedIds, dailyCap, weeklyCap = 15) {
+  const ledger = { ledger_version: 1, entries: {} };
+  for (const id of countedIds) {
+    recordResult(ledger, { id }, 'dryrun', {
+      ok: true, nowIso: SHARED_TODAY.toISOString(), hash: 'sent', notifiedAs: 'new',
+    });
+  }
+  return createBudget(ledger, SHARED_TODAY.getTime(), { dailyCap, weeklyCap });
+}
+
+for (const scenario of [
+  {
+    name: 'reserve two deliverable urgent rows after uncounted urgent rows fail the budget',
+    counted: [...SPECIFIC_IDS, 'u2', 'u3'], cap: 8,
+    expected: ['s0', 's1', 's2', 'u2', 'u3', 's3', 's4', 's5'], dropped: 2,
+  },
+  {
+    name: 'promote only the one urgent row that passes the budget',
+    counted: [...SPECIFIC_IDS, 'u3'], cap: 7,
+    expected: ['s0', 's1', 's2', 'u3', 's3', 's4', 's5'], dropped: 3,
+  },
+  {
+    name: 'preserve base order when no urgent row passes the budget',
+    counted: SPECIFIC_IDS, cap: 6,
+    expected: ['s0', 's1', 's2', 's3', 's4', 's5'], dropped: 4,
+  },
+  {
+    name: 'preserve base order when no urgent rows exist',
+    counted: SPECIFIC_IDS, cap: 6, urgentCount: 0,
+    expected: ['s0', 's1', 's2', 's3', 's4', 's5'], dropped: 0,
+  },
+  {
+    name: 'promote exactly two urgent rows when every row is free',
+    counted: [...SPECIFIC_IDS, 'u0', 'u1', 'u2', 'u3'], cap: 10,
+    expected: ['s0', 's1', 's2', 'u0', 'u1', 's3', 's4', 's5', 'u2', 'u3'], dropped: 0,
+  },
+  {
+    name: 'reserve urgent capacity before ordinary new rows exhaust a five-row budget',
+    counted: [], cap: 5,
+    expected: ['s0', 's1', 's2', 'u0', 'u1'], dropped: 5,
+  },
+  {
+    name: 'count selected rows rather than rejected ordinary rows toward the first five',
+    counted: ['s3', 's4', 's5', 'u2', 'u3'], cap: 5,
+    expected: ['s3', 's4', 's5', 'u2', 'u3'], dropped: 5,
+  },
+]) {
+  test(`shared budget: ${scenario.name}`, () => {
+    const candidates = sharedCandidates(scenario.urgentCount);
+    const before = structuredClone(candidates);
+    const budget = sharedBudget(scenario.counted, scenario.cap);
+    const { selected, dropped } = selectWithinBudget(candidates, budget, SHARED_OPTIONS);
+    assert.deepEqual(ids(selected), scenario.expected);
+    assert.equal(dropped, scenario.dropped);
+    assert.equal(selected.length + dropped, candidates.length);
+    assert.deepEqual(candidates, before);
+    const counted = new Set([...scenario.counted, ...scenario.expected]);
+    assert.deepEqual(budget.map((window) => window.countedIds), [counted, counted]);
+    assert.deepEqual(budget.map((window) => window.remaining),
+      [scenario.cap - counted.size, 15 - counted.size]);
+    const repeated = selectWithinBudget([...candidates].reverse(),
+      sharedBudget(scenario.counted, scenario.cap), SHARED_OPTIONS);
+    assert.deepEqual(ids(repeated.selected), scenario.expected);
+    assert.equal(repeated.dropped, scenario.dropped);
+  });
+}
+
+test('shared budget checks every window before reserving an urgent row', () => {
+  const candidates = sharedCandidates();
+  const budget = [
+    { remaining: 2, countedIds: new Set(SPECIFIC_IDS) },
+    { remaining: 0, countedIds: new Set([...SPECIFIC_IDS, 'u2', 'u3']) },
+  ];
+  const { selected, dropped } = selectWithinBudget(candidates, budget, SHARED_OPTIONS);
+  assert.deepEqual(ids(selected), ['s0', 's1', 's2', 'u2', 'u3', 's3', 's4', 's5']);
+  assert.equal(dropped, 2);
+  for (const window of budget) {
+    assert.equal(window.remaining, 0);
+    assert.deepEqual(window.countedIds, new Set([...SPECIFIC_IDS, 'u2', 'u3']));
+  }
+});
+
+test('shared budget promotes only one more urgent row when one is already selected', () => {
+  const candidates = sharedCandidates();
+  candidates[0].application_deadline = '2026-09-25';
+  const budget = sharedBudget([...SPECIFIC_IDS, 'u2', 'u3'], 8);
+  const { selected, dropped } = selectWithinBudget(candidates, budget, SHARED_OPTIONS);
+  assert.deepEqual(ids(selected), ['s0', 's1', 's2', 's3', 'u2', 's4', 's5', 'u3']);
+  assert.equal(dropped, 2);
+});
+
+test('shared budget skips urgency for missing or invalid today without reading the clock', (t) => {
+  const OriginalDate = Date;
+  t.mock.method(globalThis, 'Date', class extends OriginalDate {
+    constructor(...args) {
+      assert.notEqual(args.length, 0, 'must not read the wall clock');
+      super(...args);
+    }
+    static now() { assert.fail('must not read the wall clock'); }
+  });
+  const invalidDate = new Date('invalid');
+  for (const today of [undefined, null, invalidDate, '2026-09-21']) {
+    const budget = sharedBudget([...SPECIFIC_IDS, 'u2', 'u3'], 8);
+    const { selected, dropped } = selectWithinBudget(sharedCandidates(), budget,
+      { categories: ['it'], today });
+    assert.deepEqual(ids(selected), ['s0', 's1', 's2', 's3', 's4', 's5', 'u2', 'u3']);
+    assert.equal(dropped, 2);
+  }
+});
+
+test('shared budget preserves deadline ordering without selected categories', () => {
+  for (const categories of [undefined, []]) {
+    const budget = sharedBudget([...SPECIFIC_IDS, 'u2', 'u3'], 8);
+    const { selected, dropped } = selectWithinBudget(sharedCandidates(), budget,
+      { categories, today: SHARED_TODAY });
+    assert.deepEqual(ids(selected), ['u2', 'u3', 's0', 's1', 's2', 's3', 's4', 's5']);
+    assert.equal(dropped, 2);
+  }
 });
