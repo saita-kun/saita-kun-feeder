@@ -96,6 +96,7 @@
     "tests/setup-state.test.js",
     "tests/update-core.test.js",
     "tests/update-core-feedback.test.js",
+    "tests/with-secrets.test.js",
     "tests/workflows.test.js",
     "tools/check-channels.sh",
     "tools/check-feed-contract.sh",
@@ -112,6 +113,7 @@
     "tools/lib/setup_state.js",
     "tools/lib/update_core.py",
     "tools/update-core.sh",
-    "tools/validate.sh"
+    "tools/validate.sh",
+    "tools/with-secrets.js"
   ]
 }
