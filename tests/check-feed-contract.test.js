@@ -74,6 +74,78 @@ test('regenerated sample passes with matching gzip and metadata', () => {
   assert.strictEqual(res.stdout.trim(), 'check-feed-contract: OK (5 rows, schema 1.0)');
 });
 
+test('calendar-impossible application_deadline fails the gate', () => {
+  const sample = readJson(path.join(FEED_SAMPLE, 'subsidies.json'));
+  const data = structuredClone(sample);
+  data.subsidies[0].application_deadline = '2027-02-29';
+  data.subsidies[1].application_deadline = '2026-06-00';
+  const res = run([writeFeed(data)]);
+  assert.strictEqual(res.status, 1, res.stderr);
+  assert.strictEqual(res.stdout, '');
+  assert.doesNotMatch(res.stderr, /integrity:|skew:/);
+  assert.deepStrictEqual(res.stderr.trim().split(/\r?\n/), [
+    "ERROR: subsidies[0]: application_deadline is not a real calendar date: '2027-02-29'",
+    "ERROR: subsidies[1]: application_deadline is not a real calendar date: '2026-06-00'",
+    'check-feed-contract: FAIL (2 error(s))',
+  ]);
+});
+
+test('application_deadline repaired to null passes the gate', () => {
+  const sample = readJson(path.join(FEED_SAMPLE, 'subsidies.json'));
+  const data = structuredClone(sample);
+  data.subsidies[0].application_deadline = null;
+  data.subsidies[1].application_deadline = null;
+  const res = run([writeFeed(data)]);
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.strictEqual(res.stderr, '');
+  assert.strictEqual(res.stdout.trim(), 'check-feed-contract: OK (5 rows, schema 1.0)');
+});
+
+test('leap-year and sentinel deadlines stay valid', () => {
+  const sample = readJson(path.join(FEED_SAMPLE, 'subsidies.json'));
+  const deadlines = [
+    '2028-02-29', '2000-02-29', '2026-02-28', '2026-12-31', 'No information', null,
+    '', '2026-2-29', '2026/02/29', '2026-02-29T00:00:00Z',
+  ];
+  for (let offset = 0; offset < deadlines.length; offset += sample.subsidies.length) {
+    const data = structuredClone(sample);
+    for (const [index, deadline] of deadlines.slice(offset, offset + data.subsidies.length).entries()) {
+      data.subsidies[index].application_deadline = deadline;
+    }
+    const res = run([writeFeed(data)]);
+    assert.strictEqual(res.status, 0, res.stderr);
+    assert.strictEqual(res.stderr, '');
+    assert.strictEqual(res.stdout.trim(), 'check-feed-contract: OK (5 rows, schema 1.0)');
+  }
+});
+
+for (const deadline of ['２０２６-０２-２９', '２０２６-０２-２８', '٢٠٢٦-٠٢-٢٩']) {
+  test(`non-ASCII application_deadline ${deadline} passes as non-ISO`, () => {
+    const data = readJson(path.join(FEED_SAMPLE, 'subsidies.json'));
+    data.subsidies[0].application_deadline = deadline;
+    const res = run([writeFeed(data)]);
+    assert.strictEqual(res.status, 0, res.stderr);
+    assert.strictEqual(res.stderr, '');
+    assert.strictEqual(res.stdout.trim(), 'check-feed-contract: OK (5 rows, schema 1.0)');
+  });
+}
+
+test('invalid calendar boundaries fail the gate', () => {
+  const sample = readJson(path.join(FEED_SAMPLE, 'subsidies.json'));
+  for (const deadline of ['2026-02-29', '2026-04-31', '2100-02-29', '2026-13-01']) {
+    const data = structuredClone(sample);
+    data.subsidies[0].application_deadline = deadline;
+    const res = run([writeFeed(data)]);
+    assert.strictEqual(res.status, 1, deadline);
+    assert.strictEqual(res.stdout, '');
+    assert.doesNotMatch(res.stderr, /integrity:|skew:/);
+    assert.deepStrictEqual(res.stderr.trim().split(/\r?\n/), [
+      `ERROR: subsidies[0]: application_deadline is not a real calendar date: '${deadline}'`,
+      'check-feed-contract: FAIL (1 error(s))',
+    ]);
+  }
+});
+
 test('forbidden_fields_fail_by_presence', async (t) => {
   const sample = readJson(path.join(FEED_SAMPLE, 'subsidies.json'));
   for (const index of [0, sample.subsidies.length - 1]) {

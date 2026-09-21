@@ -9,6 +9,7 @@ Usage: check_feed_contract.py [--allow-raw-fixture] <feed_dir>
 Exit 0 when conformant; exit 1 with one error per line otherwise.
 """
 
+import datetime
 import gzip
 import hashlib
 import json
@@ -117,6 +118,13 @@ def check_row(row, idx, errors):
         v = row.get(field)
         if v is not None and not isinstance(v, str):
             errors.append(f"{where}: {field} must be string or null, got {type(v).__name__}")
+
+    v = row.get("application_deadline")
+    if isinstance(v, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", v):
+        try:
+            datetime.date(*map(int, v.split("-")))
+        except ValueError:
+            errors.append(f"{where}: application_deadline is not a real calendar date: {v!r}")
 
     prefs = row.get("prefectures")
     if not isinstance(prefs, list) or not all(isinstance(p, str) for p in prefs):
