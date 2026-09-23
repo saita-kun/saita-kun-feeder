@@ -105,6 +105,7 @@ test('leap-year and sentinel deadlines stay valid', () => {
   const sample = readJson(path.join(FEED_SAMPLE, 'subsidies.json'));
   const deadlines = [
     '2028-02-29', '2000-02-29', '2026-02-28', '2026-12-31', 'No information', null,
+    '2026-01-01',
     '', '2026-2-29', '2026/02/29', '2026-02-29T00:00:00Z',
   ];
   for (let offset = 0; offset < deadlines.length; offset += sample.subsidies.length) {
@@ -132,7 +133,8 @@ for (const deadline of ['２０２６-０２-２９', '２０２６-０２-２�
 
 test('invalid calendar boundaries fail the gate', () => {
   const sample = readJson(path.join(FEED_SAMPLE, 'subsidies.json'));
-  for (const deadline of ['2026-02-29', '2026-04-31', '2100-02-29', '2026-13-01']) {
+  for (const deadline of ['2026-02-29', '2026-04-31', '2100-02-29', '2026-13-01',
+    '2026-06-31', '2026-09-31', '2026-11-31', '2026-00-10']) {
     const data = structuredClone(sample);
     data.subsidies[0].application_deadline = deadline;
     const res = run([writeFeed(data)]);
