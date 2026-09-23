@@ -24,6 +24,7 @@ const { spawnSync } = require('node:child_process');
 const { isOpen, isSubsidyMatchingUser } = require('../lib/match-user-subsidy');
 const { loadFeed, freshnessWarnings } = require('../lib/feed-client');
 const ledgerLib = require('../lib/ledger');
+const { acquireLedgerLock } = require('../lib/ledger-lock');
 const { createBudget, selectWithinBudget } = require('../lib/select');
 const { renderDigest } = require('../lib/digest');
 const { basisDate, basisDateCarrier } = require('../lib/basis-date');
@@ -115,7 +116,7 @@ async function main() {
   const effectiveDryRun = args.dryRun || process.env.SAITA_FEEDER_DRY_RUN === '1';
 
   const profilePath = args.profile || path.join(ROOT, 'profile', 'delivery-profile.json');
-  const ledgerPath = args.ledger || path.join(ROOT, 'state', 'notified.json');
+  let ledgerPath = args.ledger || path.join(ROOT, 'state', 'notified.json');
   const outDir = args.out || path.join(ROOT, 'output');
 
   const profile = loadProfile(profilePath);
@@ -129,95 +130,101 @@ async function main() {
   const feedBase = args.feed || profile.feed_base_url;
   if (!feedBase) throw new Error('フィードの場所が未設定です（--feed または profile.feed_base_url）');
 
-  // Cache lives next to the ledger (state/cache/ by default), so test runs
-  // with a temp ledger are fully isolated from repo state.
-  const feed = await loadFeed({
-    baseUrl: feedBase,
-    cachePath: path.join(path.dirname(ledgerPath), 'cache', 'last-good-feed.json'),
-  });
-  const warnings = [...feed.warnings, ...freshnessWarnings(feed.meta, nowMs)];
+  const lock = acquireLedgerLock(ledgerPath);
+  ledgerPath = lock.ledgerPath;
+  try {
+    // Cache lives next to the ledger (state/cache/ by default), so test runs
+    // with a temp ledger are fully isolated from repo state.
+    const feed = await loadFeed({
+      baseUrl: feedBase,
+      cachePath: path.join(path.dirname(ledgerPath), 'cache', 'last-good-feed.json'),
+    });
+    const warnings = [...feed.warnings, ...freshnessWarnings(feed.meta, nowMs)];
 
-  const open = feed.data.subsidies.filter((s) => isOpen(s, todayDate));
-  const matched = open.filter((s) =>
-    isSubsidyMatchingUser(s, profile, { today: todayDate, isPaid: true })
-  );
-  console.log(
-    `feed: ${feed.data.subsidies.length} 件（${feed.source}）/ open: ${open.length} 件 / マッチ: ${matched.length} 件`
-  );
-
-  const ledger = ledgerLib.loadLedger(ledgerPath);
-  // Share counted IDs across channels, including successes saved by earlier runs.
-  let budget = createBudget(ledger, nowMs, {
-    weeklyCap: profile.weekly_cap,
-    dailyCap: profile.daily_cap,
-  });
-
-  const channels = resolveChannels(profile, effectiveDryRun);
-  fs.mkdirSync(outDir, { recursive: true });
-
-  let anyFailed = false;
-  for (const channel of channels) {
-    const actionable = [];
-    for (const subsidy of matched) {
-      const plan = ledgerLib.planCandidate(ledger, subsidy, channel.name, nowMs);
-      if (plan.action !== 'skip') actionable.push({ subsidy, plan });
-    }
-
-    // Keep capacity reservations local until this channel succeeds.
-    const channelBudget = budget.map(({ remaining, countedIds }) => ({
-      remaining, countedIds: new Set(countedIds),
-    }));
-    const { selected, dropped } = selectWithinBudget(
-      actionable.map((a) => a.subsidy),
-      channelBudget
+    const open = feed.data.subsidies.filter((s) => isOpen(s, todayDate));
+    const matched = open.filter((s) =>
+      isSubsidyMatchingUser(s, profile, { today: todayDate, isPaid: true })
     );
-    const planById = new Map(actionable.map((a) => [a.subsidy.id, a.plan]));
-    const items = selected.map((subsidy) => ({
-      subsidy,
-      notifiedAs: planById.get(subsidy.id).action === 'retry' ? 'retry' : planById.get(subsidy.id).action,
-    }));
+    console.log(
+      `feed: ${feed.data.subsidies.length} 件（${feed.source}）/ open: ${open.length} 件 / マッチ: ${matched.length} 件`
+    );
 
-    if (items.length === 0 && warnings.length === 0) {
-      console.log(`[${channel.name}] 新着・更新なし — 配信しません`);
-      continue;
-    }
-
-    const digest = renderDigest({
-      items,
-      today,
-      generatedAt: feed.meta.generated_at,
-      warnings,
-      droppedCount: dropped,
+    const ledger = ledgerLib.loadLedger(ledgerPath);
+    // Share counted IDs across channels, including successes saved by earlier runs.
+    let budget = createBudget(ledger, nowMs, {
+      weeklyCap: profile.weekly_cap,
+      dailyCap: profile.daily_cap,
     });
 
-    const base = path.join(outDir, `digest-${today}-${channel.name}`);
-    fs.writeFileSync(`${base}.md`, digest.markdown);
-    fs.writeFileSync(`${base}.json`, `${JSON.stringify(digest.json, null, 2)}\n`);
+    const channels = resolveChannels(profile, effectiveDryRun);
+    fs.mkdirSync(outDir, { recursive: true });
 
-    const result = runChannelAdapter(channel.name, `${base}.md`, digest.json, effectiveDryRun);
-    console.log(
-      `[${channel.name}] ${result.ok ? '送信成功' : `送信失敗: ${result.error}`}（${items.length} 件、繰り越し ${dropped} 件）`
-    );
-
-    if (!effectiveDryRun) {
-      for (const { subsidy, notifiedAs } of items) {
-        const plan = planById.get(subsidy.id);
-        ledgerLib.recordResult(ledger, subsidy, channel.name, {
-          ok: result.ok,
-          nowIso,
-          hash: plan.hash,
-          notifiedAs: notifiedAs === 'retry' ? undefined : notifiedAs,
-        });
+    let anyFailed = false;
+    for (const channel of channels) {
+      const actionable = [];
+      for (const subsidy of matched) {
+        const plan = ledgerLib.planCandidate(ledger, subsidy, channel.name, nowMs);
+        if (plan.action !== 'skip') actionable.push({ subsidy, plan });
       }
-      ledgerLib.saveLedger(ledgerPath, ledger);
+
+      // Keep capacity reservations local until this channel succeeds.
+      const channelBudget = budget.map(({ remaining, countedIds }) => ({
+        remaining, countedIds: new Set(countedIds),
+      }));
+      const { selected, dropped } = selectWithinBudget(
+        actionable.map((a) => a.subsidy),
+        channelBudget
+      );
+      const planById = new Map(actionable.map((a) => [a.subsidy.id, a.plan]));
+      const items = selected.map((subsidy) => ({
+        subsidy,
+        notifiedAs: planById.get(subsidy.id).action === 'retry' ? 'retry' : planById.get(subsidy.id).action,
+      }));
+
+      if (items.length === 0 && warnings.length === 0) {
+        console.log(`[${channel.name}] 新着・更新なし — 配信しません`);
+        continue;
+      }
+
+      const digest = renderDigest({
+        items,
+        today,
+        generatedAt: feed.meta.generated_at,
+        warnings,
+        droppedCount: dropped,
+      });
+
+      const base = path.join(outDir, `digest-${today}-${channel.name}`);
+      fs.writeFileSync(`${base}.md`, digest.markdown);
+      fs.writeFileSync(`${base}.json`, `${JSON.stringify(digest.json, null, 2)}\n`);
+
+      const result = runChannelAdapter(channel.name, `${base}.md`, digest.json, effectiveDryRun);
+      console.log(
+        `[${channel.name}] ${result.ok ? '送信成功' : `送信失敗: ${result.error}`}（${items.length} 件、繰り越し ${dropped} 件）`
+      );
+
+      if (!effectiveDryRun) {
+        for (const { subsidy, notifiedAs } of items) {
+          const plan = planById.get(subsidy.id);
+          ledgerLib.recordResult(ledger, subsidy, channel.name, {
+            ok: result.ok,
+            nowIso,
+            hash: plan.hash,
+            notifiedAs: notifiedAs === 'retry' ? undefined : notifiedAs,
+          });
+        }
+        ledgerLib.saveLedger(ledgerPath, ledger);
+      }
+      if (result.ok) budget = channelBudget;
+      else anyFailed = true;
     }
-    if (result.ok) budget = channelBudget;
-    else anyFailed = true;
+
+    for (const w of warnings) console.log(`警告: ${w}`);
+
+    process.exitCode = anyFailed ? 2 : 0;
+  } finally {
+    lock.release();
   }
-
-  for (const w of warnings) console.log(`警告: ${w}`);
-
-  process.exitCode = anyFailed ? 2 : 0;
 }
 
 main().catch((err) => {

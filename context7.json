@@ -1,7 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "saita-kun-feeder",
-  "description": "Free open-source GitHub template that delivers newly published Japanese subsidy programs, matched against your company profile, to Slack, email, LINE or other channels via GitHub Actions or self-hosting.",
+  "description": "Free open-source GitHub template that delivers newly published Japanese subsidy programs, matched against your company profile, to Slack, email, LINE or other channels via GitHub Actions or locally.",
   "folders": [],
   "excludeFolders": ["node_modules", ".git", ".ralph"],
   "excludeFiles": [],

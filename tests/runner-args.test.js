@@ -174,6 +174,6 @@ test('FEED-07 observes fixture delivery effects', (t) => {
   assert.strictEqual(result.status, 0, result.stderr);
   assert.deepStrictEqual(result.effects.map(({ kind }) => kind), ['feed', 'adapter', 'ledger-write']);
   assert.strictEqual(result.effects[1].dryRun, '0');
-  assert.strictEqual(result.effects[2].path, fixture.ledgers[0]);
+  assert.strictEqual(result.effects[2].path, fs.realpathSync(fixture.ledgers[0]));
   assert.notStrictEqual(fs.readFileSync(fixture.ledgers[0], 'utf8'), INITIAL_LEDGER);
 });

@@ -326,7 +326,7 @@ test('FEED-11 checkpoints failures and stops on save error', async (t) => {
         "const fs = require('node:fs');",
         'const rename = fs.renameSync;',
         'fs.renameSync = (from, to) => {',
-        `  if (to === ${JSON.stringify(setup.ledger)}) throw new Error('FEED-11 save failure');`,
+        `  if (to === ${JSON.stringify(fs.realpathSync(setup.ledger))}) throw new Error('FEED-11 save failure');`,
         '  return rename(from, to);',
         '};',
         '',

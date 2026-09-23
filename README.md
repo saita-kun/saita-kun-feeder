@@ -55,6 +55,12 @@ AI が、前提の確認、作業用 private repo の準備、最初のコマン
 
 日次の自動配信は GitHub Actions（`.github/workflows/deliver.yml`）が行います。
 
+### コアの更新
+
+`bash tools/update-core.sh` は upstream の `core-manifest.json` に列挙されたファイルを更新します。[producer 実装フィードバック（履歴）](docs/design/feed-contract-v1-producer-feedback.md) も更新対象に含まれ、追跡済み・コミット済みの独自編集は upstream の内容で上書きされます。必要な独自メモは別ファイルに分けてください。
+
+追跡済みファイルに未コミットの変更がある場合や、更新先に未追跡・ignored ファイルがある場合は、コピーを開始する前に全更新を停止します。衝突を解消してから再実行してください。会社プロファイル（`profile/delivery-profile.json`）、`state/`、`input/`、`channels/my-*/`、配信 workflow（`.github/workflows/deliver.yml`）は保持されます。更新後は `git diff` と `bash tools/validate.sh` で確認してください。
+
 ## 仕組み
 
 ```
