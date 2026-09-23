@@ -65,6 +65,7 @@
     "tests/channel-stdin.test.js",
     "tests/check-feed-contract.test.js",
     "tests/check-profile.test.js",
+    "tests/deadline-calendar.test.js",
     "tests/deliver-dry-run-env.test.js",
     "tests/deliver-per-channel-save.test.js",
     "tests/e2e-deliver.test.js",

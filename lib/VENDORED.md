@@ -11,13 +11,18 @@ golden fixtures であり、fixtures が green であることだけが再同期
 
 | ファイル | 由来（upstream パス） | コピー時 upstream sha256 | コピー日 |
 |---|---|---|---|
-| `match-user-subsidy.js` | `apps/backend/lib/match-user-subsidy.js` | `c3dddd7abe8232c720bc41c9fe2d9dcd6cb8474b79a238594983efaa848bd539` | 2026-07-24 |
-| `eligible-scale.js` | `apps/backend/lib/eligible-scale.js` | `11718e9d2dd4a909ad7329a868a2f979b0017e83478e99d81d432a864ed6ed25` | 2026-07-24 |
-| `prefecture-mapper.js` | `apps/backend/lib/prefecture-mapper.js` | `2e07cbc845c06c28926452fac3c8e4fc1c6cb339fc8a7ca604162c041573c9f0` | 2026-07-24 |
-| `../tests/match-predicate-golden.test.js` | `apps/backend/tests/match-predicate-golden.test.js` | `082ca9bdaa8b651b58b56bfcd3eab4ad060a60dacd9e72bbf5fd1e28eaf53284` | 2026-07-24 |
+| `match-user-subsidy.js` | `apps/backend/lib/match-user-subsidy.js` | `975479e638e714746a270a78009752aaf4d488479725ad49233a376903a5f6e7` | 2026-09-24 |
+| `eligible-scale.js` | `apps/backend/lib/eligible-scale.js` | `11718e9d2dd4a909ad7329a868a2f979b0017e83478e99d81d432a864ed6ed25` | 2026-09-24 |
+| `prefecture-mapper.js` | `apps/backend/lib/prefecture-mapper.js` | `2e07cbc845c06c28926452fac3c8e4fc1c6cb339fc8a7ca604162c041573c9f0` | 2026-09-24 |
+| `../tests/match-predicate-golden.test.js` | `apps/backend/tests/match-predicate-golden.test.js` | `082ca9bdaa8b651b58b56bfcd3eab4ad060a60dacd9e72bbf5fd1e28eaf53284` | 2026-09-24 |
 
 golden fixtures（`tests/fixtures/match-predicate-golden/01〜09`）も同日、
 `apps/backend/tests/fixtures/match-predicate-golden/` から逐語コピー。
+
+2026-09-24 の再同期は upstream main `55e6be0`（`parseDeadline` の暦日往復検証が
+入った時点）から取得した。実際に内容が変わったのは `match-user-subsidy.js` の 1 本のみ。
+残り 3 本と golden fixtures は upstream と既にバイト一致しており、sha256 は
+2026-07-24 時点から不変（コピー日だけ更新している）。
 
 ## 再同期手順（運営 AI 向け）
 
