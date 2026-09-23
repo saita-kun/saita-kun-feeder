@@ -207,6 +207,99 @@ function sharedBudget(countedIds, dailyCap, weeklyCap = 15) {
   return createBudget(ledger, SHARED_TODAY.getTime(), { dailyCap, weeklyCap });
 }
 
+test('shared budget reserves urgent IDs before s0 and s1 exhaust the remaining two IDs', () => {
+  const candidates = sharedCandidates(2).filter((s) => s.id !== 's5');
+  const budget = sharedBudget(['s2', 's3', 's4'], 5);
+  const { selected, dropped } = selectWithinBudget(candidates, budget, SHARED_OPTIONS);
+  assert.deepEqual(ids(selected), ['s2', 's3', 's4', 'u0', 'u1']);
+  assert.equal(dropped, 2);
+  assert.deepEqual(budget.map((window) => window.remaining), [0, 10]);
+  for (const window of budget) {
+    assert.deepEqual(window.countedIds, new Set(['s2', 's3', 's4', 'u0', 'u1']));
+  }
+});
+
+for (const limitingWindow of ['daily', 'weekly']) {
+  for (const remaining of [1, 2, 3, 4]) {
+    test(`shared budget reserves urgent rows with ${limitingWindow} remaining ${remaining}`, () => {
+      const candidates = sharedCandidates(2);
+      const before = structuredClone(candidates);
+      const counted = ['s2', 's3', 's4'];
+      const cap = counted.length + remaining;
+      const makeBudget = () => sharedBudget(counted,
+        limitingWindow === 'daily' ? cap : 15, limitingWindow === 'weekly' ? cap : 15);
+      const expected = {
+        1: ['s2', 's3', 's4', 'u0'],
+        2: ['s2', 's3', 's4', 'u0', 'u1'],
+        3: ['s0', 's2', 's3', 'u0', 'u1', 's4'],
+        4: ['s0', 's1', 's2', 'u0', 'u1', 's3', 's4'],
+      }[remaining];
+      const budget = makeBudget();
+      const { selected, dropped } = selectWithinBudget(candidates, budget, SHARED_OPTIONS);
+      assert.deepEqual(ids(selected), expected);
+      assert.equal(selected.slice(0, 5).filter((s) => isUrgent(s, SHARED_TODAY)).length,
+        Math.min(2, remaining));
+      assert.equal(dropped, candidates.length - expected.length);
+      assert.deepEqual(candidates, before);
+      const selectedIds = new Set([...counted, ...expected]);
+      for (const window of budget) assert.deepEqual(window.countedIds, selectedIds);
+      assert.deepEqual(budget.map((window) => window.remaining),
+        limitingWindow === 'daily' ? [0, 15 - selectedIds.size] : [15 - selectedIds.size, 0]);
+      assert.deepEqual(ids(selectWithinBudget([...candidates].reverse(), makeBudget(),
+        SHARED_OPTIONS).selected), expected);
+    });
+  }
+}
+
+test('shared budget rejection leaves every window unchanged before a later urgent reservation', () => {
+  const budget = [
+    { remaining: 1, countedIds: new Set(SPECIFIC_IDS) },
+    { remaining: 0, countedIds: new Set([...SPECIFIC_IDS, 'u1', 'u2']) },
+  ];
+  const { selected, dropped } = selectWithinBudget(sharedCandidates(3), budget, SHARED_OPTIONS);
+  // u0 fails the weekly window; it must not consume the daily slot needed by u1.
+  assert.deepEqual(ids(selected), ['s0', 's1', 's2', 'u1', 's3', 's4', 's5']);
+  assert.equal(dropped, 2);
+  assert.deepEqual(budget[0], { remaining: 0, countedIds: new Set([...SPECIFIC_IDS, 'u1']) });
+  assert.deepEqual(budget[1], {
+    remaining: 0, countedIds: new Set([...SPECIFIC_IDS, 'u1', 'u2']),
+  });
+});
+
+test('always-accepted ordering and numeric budgets match the legacy urgent promotion rule', () => {
+  // Exhaust urgent/non-urgent assignments in up to eight candidates, including
+  // the legacy fourth-position promotion when only one urgent row exists.
+  for (let length = 0; length <= 8; length += 1) {
+    for (let mask = 0; mask < 2 ** length; mask += 1) {
+      const base = Array.from({ length }, (_, i) => row(`id-${i}`,
+        mask & (1 << i) ? '2026-09-25' : '2026-11-01', [], length - i + 10));
+      // A decreasing amount resolves ties within each deadline group.
+      const expected = [...base].sort((a, b) =>
+        a.application_deadline.localeCompare(b.application_deadline) || b.maximum_amount - a.maximum_amount);
+      // Use specificity to create nontrivial placements across the two groups.
+      base.forEach((s, i) => { s.category_it = i < Math.floor(length / 2) ? 1 : 0; });
+      expected.sort((a, b) => b.category_it - a.category_it);
+      let urgentTaken = 0;
+      for (let i = 0; i < Math.min(5, expected.length); i += 1) {
+        if (5 - i <= 2 - urgentTaken) {
+          const next = expected.findIndex((s, j) => j >= i && isUrgent(s, SHARED_TODAY));
+          if (next >= 0) expected.splice(i, 0, ...expected.splice(next, 1));
+        }
+        if (isUrgent(expected[i], SHARED_TODAY)) urgentTaken += 1;
+      }
+      const candidates = [...base].reverse();
+      assert.deepEqual(sortDeterministic(candidates, SHARED_OPTIONS), expected);
+      assert.deepEqual(selectWithinBudget(candidates, sharedBudget([], 20, 20),
+        SHARED_OPTIONS).selected, expected);
+      for (const cap of [0, 1, 3, 5, 10]) {
+        assert.deepEqual(selectWithinBudget(candidates, cap, SHARED_OPTIONS), {
+          selected: expected.slice(0, cap), dropped: Math.max(0, length - cap),
+        });
+      }
+    }
+  }
+});
+
 for (const scenario of [
   {
     name: 'reserve two deliverable urgent rows after uncounted urgent rows fail the budget',
