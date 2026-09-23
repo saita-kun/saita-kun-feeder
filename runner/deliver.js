@@ -173,7 +173,8 @@ async function main() {
       }));
       const { selected, dropped } = selectWithinBudget(
         actionable.map((a) => a.subsidy),
-        channelBudget
+        channelBudget,
+        { categories: profile.categories, today: todayDate }
       );
       const planById = new Map(actionable.map((a) => [a.subsidy.id, a.plan]));
       const items = selected.map((subsidy) => ({
