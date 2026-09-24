@@ -62,7 +62,35 @@ PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 - **台帳保存まで見る**: 同じ実行のブロックに `local-delivery: ledger save failed` が無いことを確認します。exit 3 はランナー成功・台帳保存失敗です。ランナーが非 0 の場合も、保存失敗はログに残ります
 - **配信対象があった日のみ**: `output/` にダイジェスト（`digest-<日付>-<チャネル>.md`）が増えていること。ファイル名の日付は**基準日（JST のカレンダー日付）**なので、JST 早朝に実行する上の例でも **その日（JST 当日）**の日付が付きます。新着・更新がなくフィード警告も無い日は、`[<チャネル>] 新着・更新なし — 配信しません` と出してダイジェストを作らないのが正常な動作です。`output/` が増えないこと自体を失敗と判定しないでください（判定はログで行います）
 
-チャネルの環境変数は cron 環境に設定してください。ログファイルは repo 直下に置くなら `.gitignore` に追加してください。
+ログファイルは repo 直下に置くなら `.gitignore` に追加してください。
+
+### ローカル保管庫から秘匿値を渡す
+
+cron は対話シェルの環境変数を引き継ぐとは限りません。`tools/with-secrets.js` は、利用者指定の provider（実行可能ファイル）を変数名だけを引数にして起動し、stdout の値をメモリ内で子プロセスの環境変数へ渡します。値を crontab・env ファイル・起動引数へ書かないでください。
+
+macOS の provider 例（`$HOME/.local/bin/feeder-secret-provider` として保存し `chmod +x`）。既に保管済みの項目の service が `saita-kun-feeder`、account が環境変数名である場合です。値や登録・unlock 処理はスクリプトに含めません。
+
+```sh
+#!/bin/sh
+set -eu
+case "${1:-}" in
+  MY_CHANNEL_TOKEN) exec /usr/bin/security find-generic-password -s saita-kun-feeder -a "$1" -w ;;
+  *) exit 1 ;;
+esac
+```
+
+`-s` は service、`-a` は account を照合し、`-w` はパスワードだけを出力します（[Apple 公開ソース](https://raw.githubusercontent.com/apple-oss-distributions/Security/main/SecurityTool/macOS/security.1)）。provider はラッパー経由で呼び、値を端末・ファイル・ログへ出す単体実行や `set -x` は避けてください。非対話で読める保管済み項目が前提です。
+
+上の crontab の実行行を次に置き換えます。`PATH=` 行は引き続き必要です。変数名は `channel.json` の `requires_env` に合わせ、複数なら `--env` を繰り返します。
+
+```bash
+0 7 * * * node /path/to/your-feeder/tools/with-secrets.js --provider "$HOME/.local/bin/feeder-secret-provider" --env MY_CHANNEL_TOKEN -- /bin/bash /path/to/your-feeder/tools/run-local-delivery.sh >> /path/to/your-feeder/cron-deliver.log 2>&1
+```
+
+- 既に非空の環境変数は保持し、その変数については provider を呼びません。未設定・空文字の場合のみ取得します。
+- provider は変数ごとに1回、shell を介さず実行します。stdin は閉じ、stderr は破棄します。stdout は UTF-8 の値だけとし、末尾の LF または CRLF を1個だけ除きます（他の空白・改行は保持）。provider 自身も値を保存・ログ出力せず、バックグラウンド処理を残さないでください。
+- 空出力・非ゼロ終了・起動失敗・5秒のタイムアウト・64 KiB 超過・不正 UTF-8・NUL は取得失敗です。子を起動せず exit 1、ログには `with-secrets: provider failed; command not started` だけを出します。本文は転記せず、自動再試行・unlock はしません。この場合、配信ラッパーの日時行も出ないので、日時行がないときはこのエラーも確認してください。
+- 子の引数は再解釈せず渡し、終了コード（0・2・3 など）を維持します。子の stdout/stderr はそのままログへ届くため、配信アダプタ側も秘匿値を出力しないでください。
 
 ## 同じ台帳を使うローカル実行の排他
 

@@ -44,6 +44,7 @@ dry-run では既存台帳を変更せず、新規台帳も作成しない。CLI
 ## 4. 秘匿値の扱い（MUST）
 
 - webhook URL・トークン・SMTP 認証情報等は、**ファイルに書かない**。`channel.json` の `requires_env` に必要な環境変数**名**を宣言し、値は GitHub Actions Secrets（`deliver.yml` の `env:` 経由）またはローカル環境変数から受け取る。
+- ローカル定期実行では `tools/with-secrets.js --provider <実行可能ファイル> --env <変数名> ... -- <起動コマンドと引数>` で、利用者指定の取得コマンドから値をメモリ経由で環境変数へ渡してよい（既存契約の受け渡し方法）。provider は変数名のみを引数に受け、値だけを stdout に返し、ファイル・ログへ保存しない。既存の非空値は保持し、取得失敗時は配信プロセスを起動しない。詳細・macOS の例は `docs/manual.md` を参照。アダプタも値を stdout/stderr・起動引数へ出さない。
 - `send` は起動時に `requires_env` の変数が空でないことを確認し、欠落時はその旨を stderr に出して非 0 で終了することを推奨（DRY_RUN 時は欠落しても exit 0 でよい）。
 
 ## 5. 機械検証（チャネルの中身を知らずに判定できること）

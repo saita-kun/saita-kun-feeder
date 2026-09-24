@@ -38,6 +38,7 @@ description: 通知の届け先（Slack・メール・LINE 等）をヒアリン
 ## 3. 秘匿値の登録案内
 
 - ローカル実行用: シェルの環境変数設定を案内（値はチャットに貼らせない。`read -s` 等を案内）。
+- ローカル定期実行用: `node tools/with-secrets.js --provider <実行可能ファイル> --env <requires_env の変数名> -- /bin/bash tools/run-local-delivery.sh` を案内。複数変数は `--env` を繰り返す。cron では各パスを絶対パスにし、node を含む `PATH` を設定する。provider には変数名だけを渡し、取得値は子の環境変数へ渡す。既存の非空値は保持、取得失敗時は子を起動せず非 0。値をファイル・crontab・引数へ書かせない。macOS の保管済み項目を読む `security find-generic-password` の provider 例と失敗条件は `docs/manual.md`「ローカル保管庫から秘匿値を渡す」を参照。保管庫への登録・権限変更・自動 unlock はこの案内の対象外。
 - 自動配信用のゴール: **有効チャネルの `requires_env` が GitHub Actions の実行時に解決される状態**。次の 2 つを両方行います。
   1. Secrets に値を登録する。手段は 2 経路のどちらでもよい:
      - `gh` があれば `gh secret set <NAME>`（値の入力はプロンプトに直接。チャットに貼らせない）
