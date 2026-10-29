@@ -11,7 +11,7 @@ saita-kun-feeder とは、新着の補助金情報を自社プロファイルと
 
 自社に合う補助金の新着情報を、**あなたの会社のプロファイルでマッチングして、あなたの好きな場所（Slack・メール・LINE など）に自動で届ける** OSS ハーネスです。
 
-サイタくんが無料公開している[補助金公開データフィード](docs/design/feed-contract-v1.md)（全国の補助金・約 1.2 万件、日次更新）を取得し、お使いの AI コーディングエージェント（Claude Code・Codex CLI・Cursor など）がセットアップから配信チャネルの実装までを伴走します。サーバー不要・データベース不要・API キー不要。GitHub Actions（または手元の cron）だけで動きます。
+サイタくんが無料公開している[補助金公開データフィード](docs/design/feed-contract-v1.md)（全国の補助金・約9,800件、日次更新）を取得し、お使いの AI コーディングエージェント（Claude Code・Codex CLI・Cursor など）がセットアップから配信チャネルの実装までを伴走します。サーバー不要・データベース不要・API キー不要。GitHub Actions（または手元の cron）だけで動きます。
 
 姉妹プロジェクト: 補助金の**申請**を支援する [saita-kun-planner](https://github.com/saita-kun/saita-kun-planner)（事業計画書の叩き台づくりハーネス）。feeder が「見つける・届く」、planner が「申請する」を受け持ちます。
 

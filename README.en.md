@@ -9,7 +9,7 @@
 <!-- oss-block:definition v1 -->
 saita-kun-feeder is a free, open-source (Apache-2.0) GitHub template repository that delivers newly published Japanese subsidy programs (*hojokin*) — matched against your own company profile — to the channel you already use (Slack, email, LINE, and so on).
 
-It consumes the saita-kun open subsidy data feed (about 12,000 programs nationwide, updated daily, CDLA-Permissive-2.0) and runs on GitHub Actions or your own cron. No server, no database, no API key.
+It consumes the saita-kun open subsidy data feed (about 9,800 programs nationwide, updated daily, CDLA-Permissive-2.0) and runs on GitHub Actions or your own cron. No server, no database, no API key.
 
 Matching runs entirely on your side (your repository, your CI, your machine). Your company profile is never sent to the maintainer, and the kit collects no telemetry.
 
