@@ -68,6 +68,7 @@
     "tests/deadline-calendar.test.js",
     "tests/deliver-dry-run-env.test.js",
     "tests/deliver-per-channel-save.test.js",
+    "tests/digest-format.test.js",
     "tests/e2e-deliver.test.js",
     "tests/e2e-isolation.test.js",
     "tests/feed-client.test.js",
