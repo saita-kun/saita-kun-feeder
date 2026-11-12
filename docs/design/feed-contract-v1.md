@@ -1,6 +1,6 @@
 # 公開データ契約 v1（feed-contract-v1）
 
-> 状態: 有効 ／ 制定日: 2026-07-24 ／ schema_version: **1.0**
+> 状態: 有効 ／ 制定日: 2026-07-24 ／ 改訂: 2026-11-12（§3.2・§5: 任意フィールドは予告なく追加・削除できる） ／ schema_version: **1.0**
 > 本文書は、サイタくん補助金公開データフィードの **producer（フィード提供者）と consumer（本ハーネス等の利用系）の間の契約の正本**です。機械可読形は `schemas/feed-meta.schema.json` / `schemas/feed-subsidy.schema.json`、準拠サンプルは `tests/fixtures/feed-sample/`、準拠チェッカは `tools/check-feed-contract.sh`。
 > **producer 実装の受け入れ条件 = 実出力が `tools/check-feed-contract.sh` を通ること。**
 
@@ -12,7 +12,7 @@
 ```
 
 - **認証なし**・CORS `*`・`Cache-Control: max-age=3600` 以下。HTTP GET のみで取得できること。
-- URL は安定させる。クエリ文字列によるバージョニングは禁止。破壊的変更は `/v2/` を**並存**で立て、v1 は非推奨期間中 `meta.deprecated: true` を立てて維持する。
+- URL は安定させる。クエリ文字列によるバージョニングは禁止。破壊的変更（何が該当するかは §5）は `/v2/` を**並存**で立て、v1 は非推奨期間中 `meta.deprecated: true` を立てて維持する。
 - `.gz` を明示アーティファクトとするのは、CDN の transparent content-encoding に依存すると sha256 検証対象のバイト列が不定になるため。producer は gzip 後のバイト列をそのまま配置する。
 - producer サイトのルート `llms.txt` に「公開データフィード」節を設け、`meta.json` の URL と本契約文書（canonical repo 上の絶対 URL）へリンクする。
 
@@ -60,6 +60,9 @@
 
 追加のフィールドを持ってはならない列挙ではない（§5 の互換性ルール参照）が、v1 の必須・意味は以下の通り。
 
+- **維持フィールド**: 「必須」が ✔ の 24 フィールドと `application_deadline`。v1 の間は削除せず、型と意味も変えない。
+- **任意フィールド**: 上記以外のフィールド（下表で「必須」が空欄のもののうち `application_deadline` を除く 9 フィールドと、今後追加するフィールド）。producer は予告なく追加・削除できる。consumer は、任意フィールドが無くても処理を続けられるように実装しなければならない（欠落の意味は §4 の 4）。
+
 | フィールド | 型 | 必須 | 意味・備考 |
 |---|---|---|---|
 | `id` | string | ✔ | 行の安定識別子。整数由来でも**文字列**として出力する（台帳キー・JSON キーとの整合） |
@@ -69,7 +72,7 @@
 | `prefectures` | string[] | ✔ | romaji（`hokkaido`〜`okinawa`）+ sentinel `"zenkoku"`。§4.3 |
 | `municipality` | string \| null | | 抽出値・表記ゆれあり。**包含マッチ前提**（consumer は完全一致で扱わない） |
 | `gov_level` | string | ✔ | `national` / `prefecture` / `municipal` |
-| `application_deadline` | string \| null | | §4.1 の sentinel 規約 |
+| `application_deadline` | string \| null | | §4.1 の sentinel 規約。値は null になり得るが、フィールド自体は維持する（維持フィールド） |
 | `acceptance_start` | string \| null | | |
 | `maximum_amount` | number \| string \| null | | §4.2 の sentinel 規約 |
 | `funding_limit` | string \| null | | 表示用の補足（上限の但し書き等） |
@@ -93,9 +96,10 @@
 ## 5. バージョニングと互換性
 
 - `schema_version` は `major.minor`。
-  - **minor**（1.0 → 1.1）: 後方互換の追加（フィールド追加・enum 値追加）。consumer は未知フィールドを無視しなければならない。
-  - **major**（1.x → 2.0）: 破壊的変更。`/v2/` パスを新設して並存させる。
+  - **minor**（1.0 → 1.1）: フィールドの追加、enum 値の追加、任意フィールド（§3.2）の削除。producer は予告なく行える。consumer は未知フィールドを無視し、任意フィールドの欠落を「情報なし」（§4 の 4）として扱わなければならない。
+  - **major**（1.x → 2.0）: 破壊的変更。維持フィールド（§3.2）の削除、維持フィールドの型・意味の変更、配置（§1）の変更が該当する。`/v2/` パスを新設して並存させる。
 - consumer は major が想定と異なるフィードを処理してはならない（エラーにする）。
+- 任意フィールドの削除を破壊的変更に含めないのは、producer が抽出項目を見直す自由を保つため。維持フィールドに `application_deadline` を含めるのは、これが無いと全行が「締切不明」となり、open 判定（§4 の 1）で全件が除外されるため。
 
 ## 6. 鮮度・整合性（consumer の義務）
 
