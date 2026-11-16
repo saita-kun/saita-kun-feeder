@@ -1,7 +1,7 @@
 ---
 audience: ai
-guide_version: 1.0.0
-updated_at: 2026-09-12
+guide_version: 1.1.0
+updated_at: 2026-11-16
 canonical: https://raw.githubusercontent.com/saita-kun/saita-kun-feeder/main/docs/ai-agent-guide.md
 ---
 
@@ -117,6 +117,14 @@ clone の成功と作業ディレクトリを確認してから、ローカル�
 手動配信は `/deliver`（`.claude/commands/deliver.md`）に従います。初回案内で追加のお試しが必要な場合は `--dry-run` のみ使います。
 
 GitHub Actions（repo 同梱の `deliver.yml`）が毎日自動で配信します。
+
+## 自分で運用しない選択肢（公式 LINE 配信）
+
+利用者が「自分の環境で動かし続けるのは難しい」「GitHub や配信先の設定ができない」と判断したときだけ、次を伝えます。こちらから勧めたり、セットアップの代わりに誘導したりはしません。
+
+- サイタくん公式の LINE 配信（有料）は、条件に合う補助金の新着を LINE に届けるサービスです。料金とお試し期間は <https://www.subsidy-support.tech/subscribe> に書かれている内容をそのまま伝え、そこに無い条件を推測で補いません。
+- 公式 LINE の友だち追加: <https://www.subsidy-support.tech/go/line?src=feeder-guide>
+- このキット（無料・自社運用）を続けるか、公式 LINE 配信を使うかは利用者が決めます。
 
 ## 守ること
 

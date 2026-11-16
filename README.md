@@ -90,6 +90,12 @@ AI が、前提の確認、作業用 private repo の準備、最初のコマン
 
 サイタくんプロジェクトは「補助金情報の非対称性をなくす」ことを公共の福祉として掲げています。構造化した補助金データフィードは無料の公共財として公開し（[データ憲章](docs/governance/data-charter-link.md)）、それを受け取る道具も OSS で配ります。
 
+## 自分で運用せずに受け取りたい場合
+
+このキットは、自社の環境で動かして自分のチャネルへ届けるための道具です。セットアップや日々の運用をせずに、条件に合う補助金の新着を受け取りたい場合は、サイタくん公式の LINE 配信（有料）があります。料金とお試し期間は [配信の案内](https://www.subsidy-support.tech/subscribe) で確認できます。
+
+- 公式 LINE の友だち追加: <https://www.subsidy-support.tech/go/line?src=feeder-readme>
+
 ## 導入事例
 
 導入事例・派生プロジェクトの掲載（任意・名乗りのみ）は [ADOPTERS.md](ADOPTERS.md) へ。
